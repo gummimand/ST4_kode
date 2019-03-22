@@ -108,7 +108,15 @@ void loop()
     M5.Lcd.setCursor(0,  96 * 2); M5.Lcd.print("Gyro Temperature ");
     M5.Lcd.setCursor(z,  96 * 2); M5.Lcd.print(IMU.temperature, 1);
     M5.Lcd.print(" C");
-    delay(100);
+
+    Serial.print((int)(1000000*IMU.ax));
+    Serial.print(' ');
+    Serial.print((int)(1000000*IMU.ay));
+    Serial.print(' ');
+    Serial.print((int)(1000000*IMU.az));
+    Serial.println(' ');
+    delay(10);
+
 
   }
 
