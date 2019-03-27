@@ -118,14 +118,14 @@ void loop() {
     Serial.print((int)(1000000*IMU.az));
     Serial.println(' ');
 
-    int transmit_Value = (1000*IMU.ax);
+    int transmit_Value[3] = {(1000*IMU.ax), (1000*IMU.ay), (1000*IMU.az)};
 
     // notify changed value
     if (deviceConnected) {
-        pCharacteristic->setValue(transmit_Value);
+        pCharacteristic->setValue((uint8_t*) &transmit_Value, sizeof(int)*3);
         pCharacteristic->notify();
         value++;
-        delay(10); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
+        delay(50); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
     }
     // disconnecting
     if (!deviceConnected && oldDeviceConnected) {

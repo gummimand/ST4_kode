@@ -22,25 +22,46 @@ static boolean doScan = false;
 static BLERemoteCharacteristic* pRemoteCharacteristic;
 static BLEAdvertisedDevice* myDevice;
 
+//Callback for notify from periferal unit
 static void notifyCallback(
   BLERemoteCharacteristic* pBLERemoteCharacteristic,
   uint8_t* pData,
   size_t length,
   bool isNotify) {
-    /*Serial.print("Notify callback for characteristic ");
-    Serial.print(pBLERemoteCharacteristic->getUUID().toString().c_str());
-    Serial.print(" of data length ");
-    Serial.println(length);
-    Serial.print("data: ");
-    */
-    //Serial.println(*(int*)pData);//Ved modtagelse fra BLE_NOTIFY
-    //Serial.println((char*)pData);
-    //For matlab
 
+  int myXYZ[3]; // tre bytes
+  uint8_t *pHelp;
+
+  pHelp=(uint8_t*) &(myXYZ[0]);  // pH typecastet til være det array hvor data lægger
+
+  //for (int i=0; i<length; i++){
+  	//pHelp[i]=pData[i]; // lægger i bytes
+  //}
+  //for (int i = length-1; i == 0; i--) {
+//    Serial.write(pData[i]);
+//  }
+  //Serial.print(length);
+  //Serial.print(myXYZ[0]);
+
+  Serial.write(pData[11]);
+  Serial.write(pData[10]);
+  Serial.write(pData[9]);
+  Serial.write(pData[8]);
+  Serial.write(pData[7]);
+  Serial.write(pData[6]);
+  Serial.write(pData[5]);
+  Serial.write(pData[4]);
+  Serial.write(pData[3]);
+  Serial.write(pData[2]);
+  Serial.write(pData[1]);
+  Serial.write(pData[0]);
+
+    /*
     Serial.write(pData[3]);
     Serial.write(pData[2]);
     Serial.write(pData[1]);
     Serial.write(pData[0]);
+    */
     /*
     Serial.write(*(int*)pData >> 24);
     Serial.write(*(int*)pData >> 16);
@@ -59,6 +80,7 @@ class MyClientCallback : public BLEClientCallbacks {
   }
 };
 
+// Redundant connection routine.
 bool connectToServer() {
     //Serial.print("Forming a connection to ");
     //Serial.println(myDevice->getAddress().toString().c_str());
