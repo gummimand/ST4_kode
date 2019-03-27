@@ -23,7 +23,7 @@ static BLERemoteCharacteristic* pRemoteCharacteristic;
 static BLEAdvertisedDevice* myDevice;
 
 //Callback for notify from periferal unit
-static void notifyCallback(
+static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data fra notifyeren 
   BLERemoteCharacteristic* pBLERemoteCharacteristic,
   uint8_t* pData,
   size_t length,
@@ -43,6 +43,8 @@ static void notifyCallback(
   //Serial.print(length);
   //Serial.print(myXYZ[0]);
 
+// Dette er til 3 kanaler - det er vigtigt, at den sender de højeste først når det skal ind i Matlab. 
+// Dette gør, at den sender z-værdierne først 
   Serial.write(pData[11]);
   Serial.write(pData[10]);
   Serial.write(pData[9]);
@@ -56,6 +58,7 @@ static void notifyCallback(
   Serial.write(pData[1]);
   Serial.write(pData[0]);
 
+  //Dette er til én kanal 
     /*
     Serial.write(pData[3]);
     Serial.write(pData[2]);

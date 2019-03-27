@@ -19,7 +19,10 @@
    A connect hander associated with the server starts a background task that performs notification
    every couple of seconds.
 */
-#include <BLEDevice.h>
+
+//Denne kode kører ude på den perifære enhed. 
+
+#include <BLEDevice.h> 
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
@@ -29,8 +32,9 @@
 #include "utility/MPU9250.h"
 
 MPU9250 IMU;
+// Linje 37 - 47 handler om at sætte nogle parametre ift. BLE  
 
-BLEServer* pServer = NULL;
+BLEServer* pServer = NULL;  //* er en pointer, her til en BLE server
 BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
@@ -43,12 +47,13 @@ uint32_t value = 0;
 #define CHARACTERISTIC_UUID "45fedfed-0104-474d-8ee3-cc7d867a7971"
 
 //Function declaration
-void M5_IMU_read();
+void M5_IMU_read(); //Fortæller at vi har en funktion, som hedder dette, men specificere først senere, hvad det er den gør, uden dette
+// ville den klage over, at der i koden ikke var noget som hed dette. 
 
-
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
+// Laver en klasse som har nogle funktioner 
+class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklasse(??). 
+    void onConnect(BLEServer* pServer) { 
+      deviceConnected = true; 
     };
 
     void onDisconnect(BLEServer* pServer) {
@@ -65,19 +70,20 @@ void setup() {
   M5.begin();
   Wire.begin();
 
+// Ting der er nødvendig for at benytte IMU
   IMU.calibrateMPU9250(IMU.gyroBias, IMU.accelBias);
   IMU.initMPU9250();
   IMU.initAK8963(IMU.magCalibration);
 
   // Create the BLE Device
-  BLEDevice::init("ESP32");
+  BLEDevice::init("ESP32"); //BLEDevice er en overordnet klasse som har nogle properties, disse kan hentes ved at benytte ::  
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new MyServerCallbacks());
+  pServer->setCallbacks(new MyServerCallbacks()); // -> Hent data ud, så vi har objektet og brug funktionen på dette (Læs det er der her)
 
   // Create the BLE Service
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLEService *pService = pServer->createService(SERVICE_UUID); 
 
   // Create a BLE Characteristic
   pCharacteristic = pService->createCharacteristic(
@@ -95,7 +101,7 @@ void setup() {
   // Start the service
   pService->start();
 
-  // Start advertising
+  // Start advertising - annoncere nu er jeg klar, sender navn ud osv. 
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(false);
@@ -108,7 +114,7 @@ void loop() {
 
   // If intPin goes high, all data registers have new data
   // On interrupt, check if data ready interrupt
-    M5_IMU_read();
+    M5_IMU_read(); //Kaldes for at få data fra IMU 
 
     //Print values
     Serial.print((int)(1000000*IMU.ax));
@@ -118,17 +124,17 @@ void loop() {
     Serial.print((int)(1000000*IMU.az));
     Serial.println(' ');
 
-    int transmit_Value[3] = {(1000*IMU.ax), (1000*IMU.ay), (1000*IMU.az)};
+    int transmit_Value[3] = {(1000*IMU.ax), (1000*IMU.ay), (1000*IMU.az)}; //Array, som er 3 lang, hvis vi sætter ax, ay og az værdierne
 
     // notify changed value
-    if (deviceConnected) {
-        pCharacteristic->setValue((uint8_t*) &transmit_Value, sizeof(int)*3);
+    if (deviceConnected) { //Hvis device er connected, så sæt en værdi, som kan notify til client 
+        pCharacteristic->setValue((uint8_t*) &transmit_Value, sizeof(int)*3); // sixeof(int) er 4, så ganget med 3 giver det 12 
         pCharacteristic->notify();
-        value++;
+        //value++;
         delay(50); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
     }
     // disconnecting
-    if (!deviceConnected && oldDeviceConnected) {
+    if (!deviceConnected && oldDeviceConnected) { // && betyder and 
         delay(500); // give the bluetooth stack the chance to get things ready
         pServer->startAdvertising(); // restart advertising
         Serial.println("start advertising");
@@ -141,16 +147,18 @@ void loop() {
     }
 }
 
-void M5_IMU_read() {
+void M5_IMU_read() { // Denne funktion læser og skriver data på M5Stack 
   if (IMU.readByte(MPU9250_ADDRESS, INT_STATUS) & 0x01)
   {
-    IMU.readAccelData(IMU.accelCount);
+    // For accelerometer 
+    IMU.readAccelData(IMU.accelCount); // . bruges når man har objektet og skal ind i det 
     IMU.getAres();
 
     IMU.ax = (float)IMU.accelCount[0] * IMU.aRes; // - accelBias[0];
     IMU.ay = (float)IMU.accelCount[1] * IMU.aRes; // - accelBias[1];
     IMU.az = (float)IMU.accelCount[2] * IMU.aRes; // - accelBias[2];
 
+    // For gyroskop 
     IMU.readGyroData(IMU.gyroCount);  // Read the x/y/z adc values
     IMU.getGres();
 
@@ -160,6 +168,7 @@ void M5_IMU_read() {
     IMU.gy = (float)IMU.gyroCount[1] * IMU.gRes;
     IMU.gz = (float)IMU.gyroCount[2] * IMU.gRes;
 
+    // For magnetometer 
     IMU.readMagData(IMU.magCount);  // Read the x/y/z adc values
     IMU.getMres();
     // User environmental x-axis correction in milliGauss, should be
@@ -181,9 +190,9 @@ void M5_IMU_read() {
     IMU.mz = (float)IMU.magCount[2] * IMU.mRes * IMU.magCalibration[2] -
              IMU.magbias[2];
 
-    IMU.tempCount = IMU.readTempData();  // Read the adc values
+    //IMU.tempCount = IMU.readTempData();  // Read the adc values
     // Temperature in degrees Centigrade
-    IMU.temperature = ((float) IMU.tempCount) / 333.87 + 21.0;
+    //IMU.temperature = ((float) IMU.tempCount) / 333.87 + 21.0;
 
     int x=64+10;
     int y=128+20;
