@@ -23,28 +23,50 @@ static BLERemoteCharacteristic* pRemoteCharacteristic;
 static BLEAdvertisedDevice* myDevice;
 
 //Callback for notify from periferal unit
-static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data fra notifyeren 
+static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
   BLERemoteCharacteristic* pBLERemoteCharacteristic,
   uint8_t* pData,
   size_t length,
   bool isNotify) {
 
-  int myXYZ[3]; // tre bytes
-  uint8_t *pHelp;
+  //Write to matlab
+  /*
+  for (int i = length-1; i <= 0; i--) {
+    Serial.write(pData[i]);
+  }*/
 
+  //Write to terminal + serial plotter
+  int myXYZ[length/sizeof(int)]; // tre bytes
+  uint8_t *pHelp;
   pHelp=(uint8_t*) &(myXYZ[0]);  // pH typecastet til være det array hvor data lægger
 
-  //for (int i=0; i<length; i++){
-  	//pHelp[i]=pData[i]; // lægger i bytes
-  //}
-  //for (int i = length-1; i == 0; i--) {
-//    Serial.write(pData[i]);
-//  }
-  //Serial.print(length);
-  //Serial.print(myXYZ[0]);
+  for (int i=0; i<length; i++){
+  	pHelp[i]=pData[i]; // lægger i bytes
+  }
 
-// Dette er til 3 kanaler - det er vigtigt, at den sender de højeste først når det skal ind i Matlab. 
-// Dette gør, at den sender z-værdierne først 
+  /*
+  //terminal
+  Serial.print(length);
+  for (int i = sizeof(myXYZ)/sizeof(int); i >= 0; i--) {
+    Serial.print(myXYZ[i]);
+
+  }
+  */
+
+
+  //serial plotter in arduino
+  for (int i = 0; i < sizeof(myXYZ)/sizeof(int)-2; i+=3) {
+    Serial.print(myXYZ[i]);
+    Serial.print(" ");
+    Serial.print(myXYZ[i+1]);
+    Serial.print(" ");
+    Serial.println(myXYZ[i+2]);
+  }
+
+
+// Dette er til 3 kanaler - det er vigtigt, at den sender de højeste først når det skal ind i Matlab.
+// Dette gør, at den sender z-værdierne først
+/*
   Serial.write(pData[11]);
   Serial.write(pData[10]);
   Serial.write(pData[9]);
@@ -57,8 +79,8 @@ static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data 
   Serial.write(pData[2]);
   Serial.write(pData[1]);
   Serial.write(pData[0]);
-
-  //Dette er til én kanal 
+*/
+  //Dette er til én kanal
     /*
     Serial.write(pData[3]);
     Serial.write(pData[2]);
@@ -85,8 +107,8 @@ class MyClientCallback : public BLEClientCallbacks {
 
 // Redundant connection routine.
 bool connectToServer() {
-    //Serial.print("Forming a connection to ");
-    //Serial.println(myDevice->getAddress().toString().c_str());
+    Serial.print("Forming a connection to ");
+    Serial.println(myDevice->getAddress().toString().c_str());
 
     BLEClient*  pClient  = BLEDevice::createClient();
     //Serial.println(" - Created client");
@@ -179,7 +201,7 @@ void loop() {
   // connected we set the connected flag to be true.
   if (doConnect == true) {
     if (connectToServer()) {
-      //Serial.println("We are now connected to the BLE Server.");
+      Serial.println("We are now connected to the BLE Server.");
     } else {
       //Serial.println("We have failed to connect to the server; there is nothin more we will do.");
     }
@@ -194,6 +216,7 @@ void loop() {
 
     // Set the characteristic's value to be the array of bytes that is actually a string.
     pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());
+    Serial.println("Device is connected!");
   }else if(doScan){
     BLEDevice::getScan()->start(0);  // this is just eample to start scan after disconnect, most likely there is better way to do it in arduino
   }
