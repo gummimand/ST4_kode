@@ -5,12 +5,16 @@
  * updated by chegewara
  */
 
+#define M5ACTIVE 0
+
 #include "BLEDevice.h"
 //#include "BLEScan.h"
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <Arduino.h>
+#include <M5Stack.h>
+
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID("d25d6d42-8e94-4e65-a6f0-0ae9f9b2cb65");
 // The characteristic of the remote service we are interested in.
@@ -30,8 +34,9 @@ static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data 
   bool isNotify) {
 
   //Write to matlab
+
   /*
-  for (int i = length-1; i <= 0; i--) {
+  for (int i = length-1; i >= 0; i--) {
     Serial.write(pData[i]);
   }*/
 
@@ -47,7 +52,7 @@ static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data 
   /*
   //terminal
   Serial.print(length);
-  for (int i = sizeof(myXYZ)/sizeof(int); i >= 0; i--) {
+  for (int i = sizeof(myXYZ)/sizeof(int)-1; i >= 0; i--) {
     Serial.print(myXYZ[i]);
 
   }
@@ -180,7 +185,9 @@ void setup() {
   Serial.begin(115200);
   //Serial.println("Starting Arduino BLE Client application...");
   BLEDevice::init("");
-
+  #if M5ACTIVE
+    M5.begin(true, true, false);
+  #endif
   // Retrieve a Scanner and set the callback we want to use to be informed when we
   // have detected a new device.  Specify that we want active scanning and start the
   // scan to run for 5 seconds.
@@ -216,10 +223,22 @@ void loop() {
 
     // Set the characteristic's value to be the array of bytes that is actually a string.
     pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());
-    Serial.println("Device is connected!");
+    //Serial.println("Device is connected!");
   }else if(doScan){
     BLEDevice::getScan()->start(0);  // this is just eample to start scan after disconnect, most likely there is better way to do it in arduino
   }
+
+  #if M5ACTIVE
+    int bytesAvailable = Serial.available();
+    if(bytesAvailable) {
+      char readData = (char)Serial.read();
+      M5.Lcd.fillScreen(BLACK);
+      M5.Lcd.setTextColor(GREEN , BLACK);
+      M5.Lcd.setTextSize(10);
+      M5.Lcd.setCursor(0, 0);
+      M5.Lcd.print(readData);
+    }
+  #endif
 
   delay(1000); // Delay a second between loops.
 } // End of loop

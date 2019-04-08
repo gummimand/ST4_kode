@@ -43,12 +43,12 @@ bool oldDeviceConnected = false;
 int valueArray[39]={0};
 uint32_t sample_count = 0;
 bool flag_ADC=false;
-int sF = 100;
+int sF = 50;
 
 
 
 //Interrupt timer variables
-hw_timer_t * timer = NULL;
+hw_timer_t* timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
 // See the following for generating UUIDs:
@@ -98,17 +98,16 @@ void setup() {
      Serial.println("IMU initialization unsuccessful");
     }
     // setting the accelerometer full scale range to +/-8G
-    IMU.setAccelRange(MPU9250::ACCEL_RANGE_8G);
+    IMU.setAccelRange(MPU9250::ACCEL_RANGE_4G);
     // setting the gyroscope full scale range to +/-500 deg/s
     IMU.setGyroRange(MPU9250::GYRO_RANGE_2000DPS);
     // setting DLPF bandwidth to 20 Hz
     IMU.setDlpfBandwidth(MPU9250::DLPF_BANDWIDTH_20HZ);
     // setting SRD to 1 for a 500 Hz update rate (SAMPLE_RATE=1000/(1+SRD))
-    IMU.setSrd(1);
+    IMU.setSrd(0);
   #endif
 
   setupBLE();
-
   M5_wakeup();
   timerAlarmEnable(timer); //Enable interrupt timer
 }
@@ -134,7 +133,7 @@ void loop() {
       for (int i = 0; i < sizeof(valueArray)/sizeof(int)-2; i+=3) {
         Serial.print(valueArray[i]);
         Serial.print(" ");
-        Serial.println(valueArray[i+1]);
+        Serial.print(valueArray[i+1]);
         Serial.print(" ");
         Serial.println(valueArray[i+2]);
       }
@@ -142,7 +141,7 @@ void loop() {
       pCharacteristic->setValue((uint8_t*) &valueArray, sizeof(valueArray)); //
       pCharacteristic->notify();
       sample_count=0;
-      delay(50); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
+      //delay(50); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
   }
   // disconnecting
   if (!deviceConnected && oldDeviceConnected) { // && betyder and
