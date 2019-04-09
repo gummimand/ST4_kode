@@ -12,7 +12,7 @@ hw_timer_t * timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint32_t lastIsrAt = 0;
 
-int index_counter=0;
+int32_t index_counter=0;
 float beep_next=IR1_table[index_counter];
 
 void IRAM_ATTR onTimer() {
@@ -43,12 +43,14 @@ void loop() {
  
     totalInterruptCounter++;
   
-    Serial.print(" Total number:");
-    Serial.println(totalInterruptCounter/10);       
+       
     
     if ((totalInterruptCounter/10)>=beep_next){  
       M5.Speaker.tone(NOTE_DH2, 200);      
-      Serial.println("!!!!!!!!!!!bip!!!!!!!!!!!");
+      Serial.write(index_counter>>24);
+      Serial.write(index_counter>>16);
+      Serial.write(index_counter>>8);
+      Serial.write(index_counter);
       index_counter++;
       beep_next=IR1_table[index_counter];
       return; 
