@@ -32,7 +32,7 @@ static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data 
   uint8_t* pData,
   size_t length,
   bool isNotify) {
-
+    int arrayLength = length/sizeof(int);
   //Write to matlab
 
   /*
@@ -41,12 +41,12 @@ static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data 
   }*/
 
   //Write to terminal + serial plotter
-  int myXYZ[length/sizeof(int)]; // tre bytes
+  int myXYZ[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
   uint8_t *pHelp;
-  pHelp=(uint8_t*) &(myXYZ[0]);  // pH typecastet til være det array hvor data lægger
+  pHelp=(uint8_t*) &(myXYZ[0]);  // pH peger på myXYZ, hvor data skal lægges
 
   for (int i=0; i<length; i++){
-  	pHelp[i]=pData[i]; // lægger i bytes
+  	pHelp[i]=pData[i]; //Fylder myXYZ op 1 byte ad gangen, da pHelp peger på myXYZ.
   }
 
   /*
@@ -71,33 +71,7 @@ static void notifyCallback( // Kalder notify fra BLE_notify - Den opsamler data 
 
 // Dette er til 3 kanaler - det er vigtigt, at den sender de højeste først når det skal ind i Matlab.
 // Dette gør, at den sender z-værdierne først
-/*
-  Serial.write(pData[11]);
-  Serial.write(pData[10]);
-  Serial.write(pData[9]);
-  Serial.write(pData[8]);
-  Serial.write(pData[7]);
-  Serial.write(pData[6]);
-  Serial.write(pData[5]);
-  Serial.write(pData[4]);
-  Serial.write(pData[3]);
-  Serial.write(pData[2]);
-  Serial.write(pData[1]);
-  Serial.write(pData[0]);
-*/
-  //Dette er til én kanal
-    /*
-    Serial.write(pData[3]);
-    Serial.write(pData[2]);
-    Serial.write(pData[1]);
-    Serial.write(pData[0]);
-    */
-    /*
-    Serial.write(*(int*)pData >> 24);
-    Serial.write(*(int*)pData >> 16);
-    Serial.write(*(int*)pData >> 8);
-    Serial.write(*(int*)pData);
-    */
+
 }
 
 class MyClientCallback : public BLEClientCallbacks {
