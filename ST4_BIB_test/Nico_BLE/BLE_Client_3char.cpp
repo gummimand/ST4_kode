@@ -148,6 +148,7 @@ bool connectToServer() {
 
     // Connect to the remove BLE Server.
     pClient->connect(myDevice);  // if you pass BLEAdvertisedDevice instead of address, it will be recognized type of peer device address (public or private)
+    Serial.println(" - Connected to server");
 
     // Obtain a reference to the service we are after in the remote BLE server.
     BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
@@ -156,6 +157,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
+    Serial.println(" - Found our service");
 
 
 
@@ -166,6 +168,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
+    Serial.println(" - Found our characteristic - start");
 
 
     // Read the value of the characteristic.
@@ -184,6 +187,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
+    Serial.println(" - Found our characteristic-turn");
 
 
     // Read the value of the characteristic.
@@ -202,6 +206,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
+    Serial.println(" - Found our characteristic-stop");
 
 
     // Read the value of the characteristic.
@@ -266,7 +271,7 @@ void loop() {
     if (connectToServer()) {
 
     } else {
-
+      Serial.println("Not connected to server");
     }
     doConnect = false;
   }
