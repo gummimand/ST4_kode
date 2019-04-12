@@ -18,7 +18,7 @@
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID("d25d6d42-8e94-4e65-a6f0-0ae9f9b2cb65");
 
-// The characteristic of the remote services we are interested in. One for each type of event identified by the server. 
+// The characteristic of the remote services we are interested in. One for each type of event identified by the server.
 static BLEUUID    charUUID_START("45fedfed-0104-474d-8ee3-cc7d867a7971");
 static BLEUUID    charUUID_TURN("4b6cbf78-8673-4014-8e2e-f92e5ebc9d5c");
 static BLEUUID    charUUID_STOP("2cc28937-73d0-4694-9462-94e3a1d85247");
@@ -55,14 +55,14 @@ static void notifyCallback_start( // Kalder notify fra BLE_notify - Den opsamler
   	pHelp[i]=pData[i]; //Fylder myXYZ op 1 byte ad gangen, da pHelp peger på myXYZ.
   }
 
-  
+
   //terminal
   Serial.print(length);
   for (int i = sizeof(myXYZ)/sizeof(int)-1; i >= 0; i--) {
     Serial.print(myXYZ[i]);
 
   }
-  
+
 
   }
 
@@ -77,7 +77,7 @@ static void notifyCallback_turn( // Kalder notify fra BLE_notify - Den opsamler 
   for (int i = length-1; i >= 0; i--) {
     Serial.write(pData[i]);
   }*/
- 
+
    //Write to terminal + serial plotter
   int myXYZ[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
   uint8_t *pHelp;
@@ -87,14 +87,14 @@ static void notifyCallback_turn( // Kalder notify fra BLE_notify - Den opsamler 
   	pHelp[i]=pData[i]; //Fylder myXYZ op 1 byte ad gangen, da pHelp peger på myXYZ.
   }
 
-  
+
   //terminal
   Serial.print(length);
   for (int i = sizeof(myXYZ)/sizeof(int)-1; i >= 0; i--) {
     Serial.print(myXYZ[i]);
 
   }
-  
+
   }
 
 
@@ -119,14 +119,14 @@ static void notifyCallback_stop( // Kalder notify fra BLE_notify - Den opsamler 
   	pHelp[i]=pData[i]; //Fylder myXYZ op 1 byte ad gangen, da pHelp peger på myXYZ.
   }
 
-  
+
   //terminal
   Serial.print(length);
   for (int i = sizeof(myXYZ)/sizeof(int)-1; i >= 0; i--) {
     Serial.print(myXYZ[i]);
 
   }
-  
+
 
   }
 
@@ -156,7 +156,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
-    
+
 
 
     // Obtain a reference to the characteristic in the service of the remote BLE server. Her starter start
@@ -166,7 +166,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
-  
+
 
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_start->canRead()) {
@@ -177,14 +177,14 @@ bool connectToServer() {
     if(pRemoteCharacteristic_start->canNotify())
       pRemoteCharacteristic_start->registerForNotify(notifyCallback_start);
 
-// Obtain a reference to the characteristic in the service of the remote BLE server. Her starter turn 
+// Obtain a reference to the characteristic in the service of the remote BLE server. Her starter turn
     pRemoteCharacteristic_turn = pRemoteService->getCharacteristic(charUUID_TURN);
     if (pRemoteCharacteristic_turn == nullptr) {
 
       pClient->disconnect();
       return false;
     }
-  
+
 
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_turn->canRead()) {
@@ -202,7 +202,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
-  
+
 
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_stop->canRead()) {
@@ -239,7 +239,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 
 void setup() {
   Serial.begin(115200);
-  
+
   BLEDevice::init("");
   #if M5ACTIVE
     M5.begin(true, true, false);
@@ -264,9 +264,9 @@ void loop() {
   // connected we set the connected flag to be true.
   if (doConnect == true) {
     if (connectToServer()) {
-      
+
     } else {
-      
+
     }
     doConnect = false;
   }
@@ -274,13 +274,15 @@ void loop() {
   // If we are connected to a peer BLE Server, update the characteristic each time we are reached
   // with the current time since boot.
   if (connected) {
-    String newValue = "Time since boot: " + String(millis()/1000);
+    String newValue_start = "Time since boot_start: " + String(millis()/1000);
+    String newValue_turn = "Time since boot_turn: " + String(millis()/1000);
+    String newValue_stop = "Time since boot_stop: " + String(millis()/1000);
 
     // Set the characteristic's value to be the array of bytes that is actually a string.
-    pRemoteCharacteristic_start->writeValue(newValue.c_str(), newValue.length());
-    pRemoteCharacteristic_turn->writeValue(newValue.c_str(), newValue.length());
-    pRemoteCharacteristic_stop->writeValue(newValue.c_str(), newValue.length());
-    
+    pRemoteCharacteristic_start->writeValue(newValue_start.c_str(), newValue_start.length());
+    pRemoteCharacteristic_turn->writeValue(newValue_turn.c_str(), newValue_turn.length());
+    pRemoteCharacteristic_stop->writeValue(newValue_stop.c_str(), newValue_stop.length());
+
   }else if(doScan){
     BLEDevice::getScan()->start(0);  // this is just eample to start scan after disconnect, most likely there is better way to do it in arduino
   }
