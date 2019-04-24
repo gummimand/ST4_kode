@@ -32,6 +32,7 @@
 
 #define IMU_UNIT 1
 #define M5ACTIVE 1
+#define SDACTIVE 1
 #define FILENAME "/data.txt"
 
 #if IMU_UNIT
@@ -47,7 +48,7 @@ BLECharacteristic* pCharacteristic_stop = NULL;
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-int valueArray[39]={0};
+int valueArray[78]={0};
 int arraySize = sizeof(valueArray)/sizeof(int);
 uint32_t sample_count = 0;
 bool flag_ADC=false;
@@ -85,7 +86,7 @@ void onTimer(); //Interrupt callback function
 void setupTimer();
 void setupBLE();
 
-void WriteSDcard(int samplesToWrite);
+void WriteToSDcard(int samplesToWrite);
 void writeFile(fs::FS &fs, const char * path, const char * message);
 void appendFile(fs::FS &fs, const char * path, const char * message);
 String int2str(int inArray[], int size);
@@ -156,7 +157,9 @@ void loop() {
   }
 
   if(sample_count >= arraySize){
-    WriteSDcard(sample_count);
+    #if SDACTIVE
+      WriteToSDcard(sample_count);
+    #endif
     sample_count=0;
   }
 
@@ -166,7 +169,7 @@ void loop() {
     pCharacteristic_start->notify();
     printf("Notified value: %d\n", value1);
 
-    delay(1000);
+    delay(200);
     startIdentified = false;
     turnIdentified = true;
   }
@@ -176,7 +179,7 @@ void loop() {
     pCharacteristic_turn->notify();
     printf("Notified value: %d\n", value2);
 
-    delay(1000);
+    delay(200);
     turnIdentified = false;
     stopIdentified = true;
   }
@@ -186,7 +189,7 @@ void loop() {
     pCharacteristic_stop->notify();
     printf("Notified value: %d\n", value3);
 
-    delay(1000);
+    delay(200);
     stopIdentified = false;
     startIdentified = true;
   }
@@ -234,6 +237,7 @@ void IRAM_ATTR M5_IMU_read_ADC() { // Denne funktion læser og skriver data på 
   #endif
 }
 
+//Warning: Array size must be dividable with 3.
 void IRAM_ATTR storeADCData(){
   #if IMU_UNIT
     valueArray[sample_count++] = (int)1000*IMU.getAccelZ_mss();//in cm/s^2
@@ -243,7 +247,7 @@ void IRAM_ATTR storeADCData(){
 }
 
 //From https://randomnerdtutorials.com/esp32-data-logging-temperature-to-microsd-card/ and Arduino example
-void WriteSDcard(int samplesToWrite) {
+void WriteToSDcard(int samplesToWrite) {
   String dataMessage;
   File file = SD.open(FILENAME);
 
@@ -255,7 +259,7 @@ void WriteSDcard(int samplesToWrite) {
     dataMessage = int2str(valueArray, samplesToWrite);//Converts integer array to string
     Serial.print("Save data: ");
     Serial.println(dataMessage);
-    appendFile(SD, FILENAME, (dataMessage.c_str()) );//Converts strin to char* to append
+    appendFile(SD, FILENAME, (dataMessage.c_str()) );//Converts string to char* to append
   }
   file.close();
 }

@@ -364,14 +364,16 @@ void loop() {
       case 'E':
         if (testRunning) {
           testRunning = false;
-          timerAlarmDisable(timerBeep);
+          timerAlarmDisable(timerBeep);//Not good, beep stops and cant be enabled again.
         }
         break;
       default:
         break;
     }
   }
-  M5.update();
+  #if M5ACTIVE
+    M5.update();
+  #endif
 } // End of loop
 
 
