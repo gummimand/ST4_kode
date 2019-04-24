@@ -347,7 +347,7 @@ void loop() {
       }
       lastBeepAt = interruptCounter;
       #if M5ACTIVE
-        M5.Speaker.tone(NOTE_DH2, 200);
+        M5.Speaker.tone(NOTE_DH2, 20);
         M5.update();
       #endif
       //Serial.println("!!beep!!");
