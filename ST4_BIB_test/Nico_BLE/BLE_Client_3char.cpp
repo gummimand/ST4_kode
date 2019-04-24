@@ -5,7 +5,7 @@
  * updated by chegewara
  */
 
-#define M5ACTIVE 1
+#define M5ACTIVE 0
 #define NOTE_DH2 330
 
 #include "BLEDevice.h"
@@ -289,7 +289,7 @@ void setup() {
 
   BLEDevice::init("");
   #if M5ACTIVE
-    M5.begin(true, true, false);
+    M5.begin(true, false, false);//Enable LCD, disable SD, disable Serial(since it has begun)
   #endif
   // Retrieve a Scanner and set the callback we want to use to be informed when we
   // have detected a new device.  Specify that we want active scanning and start the
@@ -311,8 +311,9 @@ void loop() {
   // If the flag "doConnect" is true then we have scanned for and found the desired
   // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
   // connected we set the connected flag to be true.
-  if (doConnect == true) {
+  if (doConnect == true && testRunning) {
     if (connectToServer()) {
+      timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
     }
     else {
       Serial.println("Not connected to server");
@@ -347,15 +348,8 @@ void loop() {
       }
       lastBeepAt = interruptCounter;
       #if M5ACTIVE
-        M5.Speaker.tone(NOTE_DH2, 20);
-        M5.update();
+        M5.Speaker.tone(NOTE_DH2, 150);
       #endif
-      //Serial.println("!!beep!!");
-      //Serial.write(index_counter>>24);
-      //Serial.write(index_counter>>16);
-      //Serial.write(index_counter>>8);
-      //Serial.write(index_counter);
-      //index_counter++;
     }
     interruptCounter++;
   }
@@ -365,12 +359,7 @@ void loop() {
     char readData = (char)Serial.read();
     switch (readData) {
       case 'S':
-        if (connected) {
           testRunning = true;
-          timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
-        }
-        else
-          Serial.println("Not connected, unable to start test!");
         break;
       case 'E':
         if (testRunning) {
@@ -381,15 +370,8 @@ void loop() {
       default:
         break;
     }
-    #if M5ACTIVE //Print recieved byte for debugging.
-        M5.Lcd.fillScreen(BLACK);
-        M5.Lcd.setTextColor(GREEN , BLACK);
-        M5.Lcd.setTextSize(10);
-        M5.Lcd.setCursor(0, 0);
-        M5.Lcd.print(readData);
-    #endif
   }
-
+  M5.update();
 } // End of loop
 
 

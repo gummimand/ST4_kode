@@ -32,6 +32,8 @@
 
 #define IMU_UNIT 1
 #define M5ACTIVE 1
+#define FILENAME "/data.txt"
+
 #if IMU_UNIT
   MPU9250 IMU(Wire,0x68);
 #endif
@@ -46,6 +48,7 @@ BLECharacteristic* pCharacteristic_stop = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 int valueArray[39]={0};
+int arraySize = sizeof(valueArray)/sizeof(int);
 uint32_t sample_count = 0;
 bool flag_ADC=false;
 int sF = 50;
@@ -81,6 +84,11 @@ void M5_wakeup(); //Display "!" to announce wakeup
 void onTimer(); //Interrupt callback function
 void setupTimer();
 void setupBLE();
+
+void WriteSDcard(int samplesToWrite);
+void writeFile(fs::FS &fs, const char * path, const char * message);
+void appendFile(fs::FS &fs, const char * path, const char * message);
+String int2str(int inArray[], int size);
 
 // Laver en klasse som har nogle funktioner
 class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklasse(??).
@@ -129,6 +137,9 @@ void setup() {
   #if M5ACTIVE
     M5_wakeup();
   #endif
+  //Initialize datafile on SD card WARNING deletes previous file on every reset
+  writeFile(SD, FILENAME, "Data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
+
   timerAlarmEnable(timer); //Enable interrupt timer
 }
 
@@ -144,9 +155,9 @@ void loop() {
     portEXIT_CRITICAL(&timerMux);
   }
 
-  if(sample_count >= (sizeof(valueArray)/sizeof(int))){
+  if(sample_count >= arraySize){
+    WriteSDcard(sample_count);
     sample_count=0;
-    //Write to SD-card
   }
 
   if(startIdentified){
@@ -230,6 +241,69 @@ void IRAM_ATTR storeADCData(){
     valueArray[sample_count++] = (int)1000*IMU.getAccelX_mss();
   #endif
 }
+
+//From https://randomnerdtutorials.com/esp32-data-logging-temperature-to-microsd-card/ and Arduino example
+void WriteSDcard(int samplesToWrite) {
+  String dataMessage;
+  File file = SD.open(FILENAME);
+
+  if(!file) {//Check if file has been initialized
+    Serial.println("File doens't exist");
+    return;
+  }
+  else {//Append data to file
+    dataMessage = int2str(valueArray, samplesToWrite);//Converts integer array to string
+    Serial.print("Save data: ");
+    Serial.println(dataMessage);
+    appendFile(SD, FILENAME, (dataMessage.c_str()) );//Converts strin to char* to append
+  }
+  file.close();
+}
+
+// Write to the SD card
+void writeFile(fs::FS &fs, const char * path, const char * message) {
+  Serial.printf("Writing file: %s\n", path);
+
+  File file = fs.open(path, FILE_WRITE);
+  if(!file) {
+    Serial.println("Failed to open file for writing");
+    return;
+  }
+  if(file.print(message)) {
+    Serial.print("File Initialized with: ");
+    Serial.println(message);
+  } else {
+    Serial.println("Write failed");
+  }
+  file.close();
+}
+
+// Append data to the SD card
+void appendFile(fs::FS &fs, const char * path, const char * message) {
+  Serial.printf("Appending to file: %s\n", path);
+
+  File file = fs.open(path, FILE_APPEND);
+  if(!file) {
+    Serial.println("Failed to open file for appending");
+    return;
+  }
+  if(file.print(message)) {
+    Serial.println("Message appended");
+  } else {
+    Serial.println("Append failed");
+  }
+  file.close();
+}
+
+String int2str(int inArray[], int size){
+  String returnString = "";
+
+  for (int i=0; i < size; i++){
+      returnString += String(inArray[i]) + ",";
+  }
+  return returnString;
+}
+
 
 void setupTimer() {
   //Setup interrupt timer as from: https://techtutorialsx.com/2017/10/07/esp32-arduino-timer-interrupts/
