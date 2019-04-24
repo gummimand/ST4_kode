@@ -30,28 +30,31 @@
 #include <M5Stack.h>
 #include "MPU9250.h"
 
-#define IMU_UNIT 0
+#define IMU_UNIT 1
 #if IMU_UNIT
 MPU9250 IMU(Wire,0x68);
 #endif
 // Linje 37 - 47 handler om at sætte nogle parametre ift. BLE
 
 BLEServer* pServer = NULL;  //* er en pointer, her til en BLE server
+BLECharacteristic* pCharacteristic = NULL;
 BLECharacteristic* pCharacteristic_start = NULL;
 BLECharacteristic* pCharacteristic_turn = NULL;
 BLECharacteristic* pCharacteristic_stop = NULL;
+
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 int valueArray[39]={0};
-int valueArrayLength = (sizeof(valueArray)/sizeof(int)); //size of array in bytes divided by size of int in bytes = length of array.
 uint32_t sample_count = 0;
 bool flag_ADC=false;
 int sF = 50;
 
-bool startIdentified=true;
-bool turnIdentified=false;
-bool stopIdentified=false;
-
+bool startIdentified = false;
+bool turnIdentified = false;
+bool stopIdentified = false;
+int value1=0;
+int value2=0;
+int value3=0;
 
 
 //Interrupt timer variables
@@ -82,16 +85,17 @@ void setupBLE();
 class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklasse(??).
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
-      Serial.println("Connected!");
+      Serial.println("Device connected");
+      startIdentified = true; //Start notifying
     };
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
+      startIdentified = false; //Stop all notifying
+      turnIdentified = false;
+      stopIdentified = false;
     }
 };
-
-
-
 
 
 void setup() {
@@ -127,7 +131,6 @@ void setup() {
 
 void loop() {
   if(flag_ADC && deviceConnected){
-    //int startTime=micros();
     M5_IMU_read_ADC(); //Kaldes for at få data fra IMU - Takes approx 560µs
     storeADCData();
     portENTER_CRITICAL(&timerMux);
@@ -135,37 +138,41 @@ void loop() {
     portEXIT_CRITICAL(&timerMux);
   }
 
-
-
-
-  // notify on start event identified
-  if (deviceConnected && startIdentified ) { //Hvis device er connected, så sæt en værdi, som kan notify til client og send pakker af 39
-      pCharacteristic_start->setValue((uint8_t*)1, sizeof(int)); //
-      pCharacteristic_start->notify();
-      startIdentified = false;
-      turnIdentified = true;
-
-      delay(500);
-  }
-  // notify on turn event identified
-  if (deviceConnected && turnIdentified ) { //Hvis device er connected, så sæt en værdi, som kan notify til client og send pakker af 39
-      pCharacteristic_turn->setValue((uint8_t*)2, sizeof(int)); //
-      pCharacteristic_turn->notify();
-      turnIdentified = false;
-      stopIdentified = true;
-
-      delay(500);
-  }
-  // notify on stop event identified
-  if (deviceConnected && stopIdentified ) { //Hvis device er connected, så sæt en værdi, som kan notify til client og send pakker af 39
-      pCharacteristic_stop->setValue((uint8_t*)3, sizeof(int)); //
-      pCharacteristic_stop->notify();
-      stopIdentified = false;
-      startIdentified = true;
-      delay(500);
+  if(sample_count >= (sizeof(valueArray)/sizeof(int))){
+    sample_count=0;
+    //Write to SD-card
   }
 
+  if(startIdentified){
+    value1 += 1;
+    pCharacteristic_start->setValue(value1); //
+    pCharacteristic_start->notify();
+    printf("Notified value: %d\n", value1);
 
+    delay(1000);
+    startIdentified = false;
+    turnIdentified = true;
+  }
+  if(turnIdentified){
+    value2 += 2;
+    pCharacteristic_turn->setValue(value2); //
+    pCharacteristic_turn->notify();
+    printf("Notified value: %d\n", value2);
+
+    delay(1000);
+    turnIdentified = false;
+    stopIdentified = true;
+  }
+  if(stopIdentified){
+    value3 += 3;
+    pCharacteristic_stop->setValue(value3); //
+    pCharacteristic_stop->notify();
+    printf("Notified value: %d\n", value3);
+
+    delay(1000);
+    stopIdentified = false;
+    startIdentified = true;
+  }
 
 
 
@@ -215,7 +222,6 @@ void IRAM_ATTR storeADCData(){
     valueArray[sample_count++] = (int)1000*IMU.getAccelZ_mss();//in cm/s^2
     valueArray[sample_count++] = (int)1000*IMU.getAccelY_mss();//increment sample_count and store read data in array.
     valueArray[sample_count++] = (int)1000*IMU.getAccelX_mss();
-    //sample_count++;
   #endif
 }
 
@@ -237,7 +243,7 @@ void setupBLE() {
   // Create the BLE Service
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
-  // Create a BLE Characteristic for start identification
+  // Create a BLE Characteristic for start
   pCharacteristic_start = pService->createCharacteristic(
                       CHARACTERISTIC_UUID_START,
                       BLECharacteristic::PROPERTY_READ   |
@@ -246,7 +252,7 @@ void setupBLE() {
                       BLECharacteristic::PROPERTY_INDICATE
                     );
 
-  // Create a BLE Characteristic for turn identification
+    // Create a BLE Characteristic for turn
   pCharacteristic_turn = pService->createCharacteristic(
                       CHARACTERISTIC_UUID_TURN,
                       BLECharacteristic::PROPERTY_READ   |
@@ -255,7 +261,7 @@ void setupBLE() {
                       BLECharacteristic::PROPERTY_INDICATE
                     );
 
-  // Create a BLE Characteristic for stop identification
+    // Create a BLE Characteristic for turn
   pCharacteristic_stop = pService->createCharacteristic(
                       CHARACTERISTIC_UUID_STOP,
                       BLECharacteristic::PROPERTY_READ   |
@@ -265,7 +271,7 @@ void setupBLE() {
                     );
 
   // https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-  // Create a BLE Descriptor for start, turn, stop characteristics
+  // Create a BLE Descriptor
   pCharacteristic_start->addDescriptor(new BLE2902());
   pCharacteristic_turn->addDescriptor(new BLE2902());
   pCharacteristic_stop->addDescriptor(new BLE2902());

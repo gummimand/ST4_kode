@@ -14,6 +14,7 @@
 #include <BLE2902.h>
 #include <Arduino.h>
 #include <M5Stack.h>
+#include <timer_table.h>
 
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID("d25d6d42-8e94-4e65-a6f0-0ae9f9b2cb65");
@@ -33,102 +34,129 @@ static BLERemoteCharacteristic* pRemoteCharacteristic_stop;
 
 static BLEAdvertisedDevice* myDevice;
 
+//Function predefine
+void setupBeepTimer();
+
+
+//Timer and interrupt variables for beeps
+volatile int interruptCounter;
+int time_interval=1000000/10;
+bool interrupt_occured= false;
+
+hw_timer_t * timerBeep = NULL;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+
+int index_counter = 0;
+int lastBeepAt = 0;
+int eventCounter = 1; //Starts on one to sync start beep with interrupts. Counts start/turn/stop, to identify location of an event.
+
+//ISR for beep interrupt
+void IRAM_ATTR onTimerBeep() {
+  portENTER_CRITICAL_ISR(&timerMux);
+  interrupt_occured=true;
+  portEXIT_CRITICAL_ISR(&timerMux);
+}
+
 //Callback for notify from periferal unit
-static void notifyCallback_start( // Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
-  BLERemoteCharacteristic* pBLERemoteCharacteristic_start,
-  uint8_t* pData,
-  size_t length,
-  bool isNotify) {
-  //Write to matlab
+// Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
+static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacteristic_start, uint8_t* pData, size_t length, bool isNotify) {
+  int recievedData_array[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
+  uint8_t *pHelp;
+  pHelp=(uint8_t*) &(recievedData_array[0]);  // pH peger på recievedData_array, hvor data skal lægges
+  double eventTime;
+  bool eventOK=false;
 
+  eventTime = (double)interruptCounter/10;//Time for event notification
+
+  //Checks if event occurred at correct time
+  if (eventCounter % 3 == 1)
+    eventOK=true;
+  else
+    eventOK=false;
+
+  //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
+  for (int i=0; i<length; i++){
+    pHelp[i]=pData[i];
+  }
+
+  //terminal
+  for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
+    printf("Start data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
+  }
+
+  //Write to matlab
   /*
   for (int i = length-1; i >= 0; i--) {
     Serial.write(pData[i]);
   }*/
+}
 
-  //Write to terminal + serial plotter
-  int myXYZ[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
+// Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
+static void notifyCallback_turn(BLERemoteCharacteristic* pBLERemoteCharacteristic_turn, uint8_t* pData, size_t length, bool isNotify) {
+  int recievedData_array[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
   uint8_t *pHelp;
-  pHelp=(uint8_t*) &(myXYZ[0]);  // pH peger på myXYZ, hvor data skal lægges
+  pHelp=(uint8_t*) &(recievedData_array[0]);  // pH peger på recievedData_array, hvor data skal lægges
+  double eventTime;
+  bool eventOK=false;
+
+  eventTime = (double)interruptCounter/10;
+
+  if (eventCounter % 3 == 2)
+    eventOK=true;
+  else
+    eventOK=false;
+
 
   for (int i=0; i<length; i++){
-  	pHelp[i]=pData[i]; //Fylder myXYZ op 1 byte ad gangen, da pHelp peger på myXYZ.
+  	pHelp[i]=pData[i]; //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
   }
-
 
   //terminal
-  Serial.print(length);
-  for (int i = sizeof(myXYZ)/sizeof(int)-1; i >= 0; i--) {
-    Serial.print(myXYZ[i]);
-
+  for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
+    printf("Turn data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
   }
 
-
-  }
-
-static void notifyCallback_turn( // Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
-  BLERemoteCharacteristic* pBLERemoteCharacteristic_turn,
-  uint8_t* pData,
-  size_t length,
-  bool isNotify) {
   //Write to matlab
-
   /*
   for (int i = length-1; i >= 0; i--) {
     Serial.write(pData[i]);
   }*/
+}
 
-   //Write to terminal + serial plotter
-  int myXYZ[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
+
+// Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
+static void notifyCallback_stop(BLERemoteCharacteristic* pBLERemoteCharacteristic_stop, uint8_t* pData, size_t length, bool isNotify) {
+  int recievedData_array[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
   uint8_t *pHelp;
-  pHelp=(uint8_t*) &(myXYZ[0]);  // pH peger på myXYZ, hvor data skal lægges
+  pHelp=(uint8_t*) &(recievedData_array[0]);  // pH peger på recievedData_array, hvor data skal lægges
+  double eventTime;
+  bool eventOK=false;
+
+  eventTime = (double)interruptCounter/10;
+
+  if (eventCounter % 3 == 0)
+    eventOK=false; //The beep was before stopping -> the player didn't make the interval.
+  else if(eventCounter % 3 == 2)
+    eventOK = true; //The stop was after turn beep but before stop beep.
+  else
+    Serial.Println("Something is out of sync.. stop identified too early"); //Stop is before turn event, and hence something is wrong.
+
 
   for (int i=0; i<length; i++){
-  	pHelp[i]=pData[i]; //Fylder myXYZ op 1 byte ad gangen, da pHelp peger på myXYZ.
+  	pHelp[i]=pData[i]; //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
   }
-
 
   //terminal
-  Serial.print(length);
-  for (int i = sizeof(myXYZ)/sizeof(int)-1; i >= 0; i--) {
-    Serial.print(myXYZ[i]);
-
+  for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
+    printf("Stop data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
   }
 
-  }
-
-
-static void notifyCallback_stop( // Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
-  BLERemoteCharacteristic* pBLERemoteCharacteristic_stop,
-  uint8_t* pData,
-  size_t length,
-  bool isNotify) {
   //Write to matlab
-
   /*
   for (int i = length-1; i >= 0; i--) {
     Serial.write(pData[i]);
   }*/
-
-  //Write to terminal + serial plotter
-  int myXYZ[length/sizeof(int)]; // length er antal bytes fra notify og sizeof(int) er størrelsen på en int (4byte)
-  uint8_t *pHelp;
-  pHelp=(uint8_t*) &(myXYZ[0]);  // pH peger på myXYZ, hvor data skal lægges
-
-  for (int i=0; i<length; i++){
-  	pHelp[i]=pData[i]; //Fylder myXYZ op 1 byte ad gangen, da pHelp peger på myXYZ.
-  }
-
-
-  //terminal
-  Serial.print(length);
-  for (int i = sizeof(myXYZ)/sizeof(int)-1; i >= 0; i--) {
-    Serial.print(myXYZ[i]);
-
-  }
-
-
-  }
+}
 
 
 class MyClientCallback : public BLEClientCallbacks {
@@ -142,9 +170,13 @@ class MyClientCallback : public BLEClientCallbacks {
 
 // Redundant connection routine.
 bool connectToServer() {
+    Serial.println(" - Connecting to server");
+
     BLEClient*  pClient  = BLEDevice::createClient();
 
     pClient->setClientCallbacks(new MyClientCallback());
+
+    BLEAddress addressTest =  myDevice->getAddress();
 
     // Connect to the remove BLE Server.
     pClient->connect(myDevice);  // if you pass BLEAdvertisedDevice instead of address, it will be recognized type of peer device address (public or private)
@@ -153,7 +185,7 @@ bool connectToServer() {
     // Obtain a reference to the service we are after in the remote BLE server.
     BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
     if (pRemoteService == nullptr) {
-
+      Serial.println(" - Service not found");
       pClient->disconnect();
       return false;
     }
@@ -231,7 +263,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
     // We have found a device, let us now see if it contains the service we are looking for.
     if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(serviceUUID)) {
-
+      Serial.println("Found advertised device");
       BLEDevice::getScan()->stop();
       myDevice = new BLEAdvertisedDevice(advertisedDevice);
       doConnect = true;
@@ -258,6 +290,8 @@ void setup() {
   pBLEScan->setWindow(449);
   pBLEScan->setActiveScan(true);
   pBLEScan->start(5, false);
+
+  setupBeepTimer();
 } // End of setup.
 
 
@@ -269,8 +303,9 @@ void loop() {
   // connected we set the connected flag to be true.
   if (doConnect == true) {
     if (connectToServer()) {
-
-    } else {
+      timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
+    }
+    else {
       Serial.println("Not connected to server");
     }
     doConnect = false;
@@ -284,12 +319,32 @@ void loop() {
     String newValue_stop = "Time since boot_stop: " + String(millis()/1000);
 
     // Set the characteristic's value to be the array of bytes that is actually a string.
-    pRemoteCharacteristic_start->writeValue(newValue_start.c_str(), newValue_start.length());
-    pRemoteCharacteristic_turn->writeValue(newValue_turn.c_str(), newValue_turn.length());
-    pRemoteCharacteristic_stop->writeValue(newValue_stop.c_str(), newValue_stop.length());
+    //pRemoteCharacteristic_start->writeValue(newValue_start.c_str(), newValue_start.length());
+    //pRemoteCharacteristic_turn->writeValue(newValue_turn.c_str(), newValue_turn.length());
+    //pRemoteCharacteristic_stop->writeValue(newValue_stop.c_str(), newValue_stop.length());
 
   }else if(doScan){
     BLEDevice::getScan()->start(0);  // this is just eample to start scan after disconnect, most likely there is better way to do it in arduino
+  }
+
+  if (interrupt_occured) { //Maybe change to while(interrupt_occured > 0){..}, to counter misses.
+    portENTER_CRITICAL(&timerMux);
+    interrupt_occured=false;
+    portEXIT_CRITICAL(&timerMux);
+
+    if (IR1_table[interruptCounter]){
+      if (lastBeepAt+4 < (interruptCounter)) {
+        eventCounter++;
+      }
+      lastBeepAt = interruptCounter;
+      Serial.println("!!beep!!");
+      //Serial.write(index_counter>>24);
+      //Serial.write(index_counter>>16);
+      //Serial.write(index_counter>>8);
+      //Serial.write(index_counter);
+      //index_counter++;
+    }
+    interruptCounter++;
   }
 
   #if M5ACTIVE
@@ -304,5 +359,13 @@ void loop() {
     }
   #endif
 
-  delay(1000); // Delay a second between loops.
+
 } // End of loop
+
+
+void setupBeepTimer() {
+  timerBeep = timerBegin(0, 80, true);
+  timerAttachInterrupt(timerBeep, &onTimerBeep, true);
+  timerAlarmWrite(timerBeep, time_interval, true);
+
+}
