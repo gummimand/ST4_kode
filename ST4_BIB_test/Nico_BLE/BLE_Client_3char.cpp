@@ -5,7 +5,8 @@
  * updated by chegewara
  */
 
-#define M5ACTIVE 0
+#define M5ACTIVE 1
+#define NOTE_DH2 330
 
 #include "BLEDevice.h"
 //#include "BLEScan.h"
@@ -50,6 +51,9 @@ int index_counter = 0;
 int lastBeepAt = 0;
 int eventCounter = 1; //Starts on one to sync start beep with interrupts. Counts start/turn/stop, to identify location of an event.
 
+int bytesAvailable=0; //Variable to communicate with matlab
+bool testRunning=0;
+
 //ISR for beep interrupt
 void IRAM_ATTR onTimerBeep() {
   portENTER_CRITICAL_ISR(&timerMux);
@@ -65,30 +69,32 @@ static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacterist
   pHelp=(uint8_t*) &(recievedData_array[0]);  // pH peger på recievedData_array, hvor data skal lægges
   double eventTime;
   bool eventOK=false;
+  if (testRunning){
 
-  eventTime = (double)interruptCounter/10;//Time for event notification
+    eventTime = (double)interruptCounter/10;//Time for event notification
 
-  //Checks if event occurred at correct time
-  if (eventCounter % 3 == 1)
-    eventOK=true;
-  else
-    eventOK=false;
+    //Checks if event occurred at correct time
+    if (eventCounter % 3 == 1)
+      eventOK=true;
+    else
+      eventOK=false;
 
-  //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
-  for (int i=0; i<length; i++){
-    pHelp[i]=pData[i];
+    //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
+    for (int i=0; i<length; i++){
+      pHelp[i]=pData[i];
+    }
+
+    //terminal
+    for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
+      printf("Start data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
+    }
+
+    //Write to matlab
+    /*
+    for (int i = length-1; i >= 0; i--) {
+      Serial.write(pData[i]);
+    }*/
   }
-
-  //terminal
-  for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
-    printf("Start data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
-  }
-
-  //Write to matlab
-  /*
-  for (int i = length-1; i >= 0; i--) {
-    Serial.write(pData[i]);
-  }*/
 }
 
 // Kalder notify fra BLE_notify - Den opsamler data fra notifyeren
@@ -98,29 +104,31 @@ static void notifyCallback_turn(BLERemoteCharacteristic* pBLERemoteCharacteristi
   pHelp=(uint8_t*) &(recievedData_array[0]);  // pH peger på recievedData_array, hvor data skal lægges
   double eventTime;
   bool eventOK=false;
+  if (testRunning){
 
-  eventTime = (double)interruptCounter/10;
+    eventTime = (double)interruptCounter/10;
 
-  if (eventCounter % 3 == 2)
-    eventOK=true;
-  else
-    eventOK=false;
+    if (eventCounter % 3 == 2)
+      eventOK=true;
+    else
+      eventOK=false;
 
 
-  for (int i=0; i<length; i++){
-  	pHelp[i]=pData[i]; //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
+    for (int i=0; i<length; i++){
+    	pHelp[i]=pData[i]; //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
+    }
+
+    //terminal
+    for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
+      printf("Turn data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
+    }
+
+    //Write to matlab
+    /*
+    for (int i = length-1; i >= 0; i--) {
+      Serial.write(pData[i]);
+    }*/
   }
-
-  //terminal
-  for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
-    printf("Turn data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
-  }
-
-  //Write to matlab
-  /*
-  for (int i = length-1; i >= 0; i--) {
-    Serial.write(pData[i]);
-  }*/
 }
 
 
@@ -131,31 +139,33 @@ static void notifyCallback_stop(BLERemoteCharacteristic* pBLERemoteCharacteristi
   pHelp=(uint8_t*) &(recievedData_array[0]);  // pH peger på recievedData_array, hvor data skal lægges
   double eventTime;
   bool eventOK=false;
+  if (testRunning){
 
-  eventTime = (double)interruptCounter/10;
+    eventTime = (double)interruptCounter/10;
 
-  if (eventCounter % 3 == 0)
-    eventOK=false; //The beep was before stopping -> the player didn't make the interval.
-  else if(eventCounter % 3 == 2)
-    eventOK = true; //The stop was after turn beep but before stop beep.
-  else
-    Serial.Println("Something is out of sync.. stop identified too early"); //Stop is before turn event, and hence something is wrong.
+    if (eventCounter % 3 == 0)
+      eventOK=false; //The beep was before stopping -> the player didn't make the interval.
+    else if(eventCounter % 3 == 2)
+      eventOK = true; //The stop was after turn beep but before stop beep.
+    else
+      Serial.println("Something is out of sync.. stop identified too early"); //Stop is before turn event, and hence something is wrong.
 
 
-  for (int i=0; i<length; i++){
-  	pHelp[i]=pData[i]; //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
+    for (int i=0; i<length; i++){
+    	pHelp[i]=pData[i]; //Fylder recievedData_array op 1 byte ad gangen, da pHelp peger på recievedData_array.
+    }
+
+    //terminal
+    for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
+      printf("Stop data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
+    }
+
+    //Write to matlab
+    /*
+    for (int i = length-1; i >= 0; i--) {
+      Serial.write(pData[i]);
+    }*/
   }
-
-  //terminal
-  for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
-    printf("Stop data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
-  }
-
-  //Write to matlab
-  /*
-  for (int i = length-1; i >= 0; i--) {
-    Serial.write(pData[i]);
-  }*/
 }
 
 
@@ -303,7 +313,6 @@ void loop() {
   // connected we set the connected flag to be true.
   if (doConnect == true) {
     if (connectToServer()) {
-      timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
     }
     else {
       Serial.println("Not connected to server");
@@ -337,7 +346,11 @@ void loop() {
         eventCounter++;
       }
       lastBeepAt = interruptCounter;
-      Serial.println("!!beep!!");
+      #if M5ACTIVE
+        M5.Speaker.tone(NOTE_DH2, 200);
+        M5.update();
+      #endif
+      //Serial.println("!!beep!!");
       //Serial.write(index_counter>>24);
       //Serial.write(index_counter>>16);
       //Serial.write(index_counter>>8);
@@ -347,18 +360,35 @@ void loop() {
     interruptCounter++;
   }
 
-  #if M5ACTIVE
-    int bytesAvailable = Serial.available();
-    if(bytesAvailable) {
-      char readData = (char)Serial.read();
-      M5.Lcd.fillScreen(BLACK);
-      M5.Lcd.setTextColor(GREEN , BLACK);
-      M5.Lcd.setTextSize(10);
-      M5.Lcd.setCursor(0, 0);
-      M5.Lcd.print(readData);
+  bytesAvailable = Serial.available();
+  if(bytesAvailable) {
+    char readData = (char)Serial.read();
+    switch (readData) {
+      case 'S':
+        if (connected) {
+          testRunning = true;
+          timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
+        }
+        else
+          Serial.println("Not connected, unable to start test!");
+        break;
+      case 'E':
+        if (testRunning) {
+          testRunning = false;
+          timerAlarmDisable(timerBeep);
+        }
+        break;
+      default:
+        break;
     }
-  #endif
-
+    #if M5ACTIVE //Print recieved byte for debugging.
+        M5.Lcd.fillScreen(BLACK);
+        M5.Lcd.setTextColor(GREEN , BLACK);
+        M5.Lcd.setTextSize(10);
+        M5.Lcd.setCursor(0, 0);
+        M5.Lcd.print(readData);
+    #endif
+  }
 
 } // End of loop
 

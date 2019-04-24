@@ -31,8 +31,9 @@
 #include "MPU9250.h"
 
 #define IMU_UNIT 1
+#define M5ACTIVE 1
 #if IMU_UNIT
-MPU9250 IMU(Wire,0x68);
+  MPU9250 IMU(Wire,0x68);
 #endif
 // Linje 37 - 47 handler om at sætte nogle parametre ift. BLE
 
@@ -102,7 +103,9 @@ void setup() {
   Serial.begin(115200);
   setupTimer();
   //M5 setup:
-  M5.begin();
+  #if M5ACTIVE
+    M5.begin();
+  #endif
   Wire.begin();
 
   // Ting der er nødvendig for at benytte IMU
@@ -122,7 +125,9 @@ void setup() {
   #endif
 
   setupBLE();
-  M5_wakeup();
+  #if M5ACTIVE
+    M5_wakeup();
+  #endif
   timerAlarmEnable(timer); //Enable interrupt timer
 }
 
