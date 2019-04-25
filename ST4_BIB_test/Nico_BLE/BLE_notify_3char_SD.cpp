@@ -33,6 +33,7 @@
 #define IMU_UNIT 1
 #define M5ACTIVE 1
 #define SDACTIVE 1
+#define NOTIFYACTIVE 0
 #define FILENAME "/data.txt"
 
 #if IMU_UNIT
@@ -97,7 +98,9 @@ class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklass
       deviceConnected = true;
       Serial.println("Device connected");
       delay(200);//To syncronize communication with client
-      startIdentified = true; //Start notifying
+      #if NOTIFYACTIVE
+        startIdentified = true; //Start notifying
+      #endif
     };
 
     void onDisconnect(BLEServer* pServer) {
@@ -169,7 +172,7 @@ void loop() {
     pCharacteristic_start->notify();
     printf("Notified value: %d\n", value1);
 
-    delay(200);
+    //delay(200);
     startIdentified = false;
     turnIdentified = true;
   }
@@ -179,7 +182,7 @@ void loop() {
     pCharacteristic_turn->notify();
     printf("Notified value: %d\n", value2);
 
-    delay(200);
+    //delay(200);
     turnIdentified = false;
     stopIdentified = true;
   }
@@ -189,7 +192,7 @@ void loop() {
     pCharacteristic_stop->notify();
     printf("Notified value: %d\n", value3);
 
-    delay(200);
+    //delay(200);
     stopIdentified = false;
     startIdentified = true;
   }

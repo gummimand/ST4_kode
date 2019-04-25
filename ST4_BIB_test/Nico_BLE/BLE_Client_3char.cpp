@@ -190,6 +190,11 @@ bool connectToServer() {
 
     // Connect to the remove BLE Server.
     pClient->connect(myDevice);  // if you pass BLEAdvertisedDevice instead of address, it will be recognized type of peer device address (public or private)
+
+    //Time to know the offset on the servers to begin their sampling
+    int startT=micros();
+
+
     Serial.println(" - Connected to server");
 
     // Obtain a reference to the service we are after in the remote BLE server.
@@ -206,23 +211,18 @@ bool connectToServer() {
     // Obtain a reference to the characteristic in the service of the remote BLE server. Her starter start
     pRemoteCharacteristic_start = pRemoteService->getCharacteristic(charUUID_START);
     if (pRemoteCharacteristic_start == nullptr) {
-
       pClient->disconnect();
       return false;
     }
     Serial.println(" - Found our characteristic - start");
 
-
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_start->canRead()) {
       std::string value = pRemoteCharacteristic_start->readValue();
-
     }
 
-    if(pRemoteCharacteristic_start->canNotify())
-      pRemoteCharacteristic_start->registerForNotify(notifyCallback_start);
 
-// Obtain a reference to the characteristic in the service of the remote BLE server. Her starter turn
+    // Obtain a reference to the characteristic in the service of the remote BLE server. Her starter turn
     pRemoteCharacteristic_turn = pRemoteService->getCharacteristic(charUUID_TURN);
     if (pRemoteCharacteristic_turn == nullptr) {
 
@@ -231,36 +231,39 @@ bool connectToServer() {
     }
     Serial.println(" - Found our characteristic-turn");
 
-
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_turn->canRead()) {
       std::string value = pRemoteCharacteristic_turn->readValue();
 
     }
 
-    if(pRemoteCharacteristic_turn->canNotify())
-      pRemoteCharacteristic_turn->registerForNotify(notifyCallback_turn);
-
-// Obtain a reference to the characteristic in the service of the remote BLE server. Her starter stop
+    // Obtain a reference to the characteristic in the service of the remote BLE server. Her starter stop
     pRemoteCharacteristic_stop = pRemoteService->getCharacteristic(charUUID_STOP);
     if (pRemoteCharacteristic_stop == nullptr) {
-
       pClient->disconnect();
       return false;
     }
     Serial.println(" - Found our characteristic-stop");
 
-
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_stop->canRead()) {
       std::string value = pRemoteCharacteristic_stop->readValue();
-
     }
+
+
+    //Register callbacks for notification
+    if(pRemoteCharacteristic_start->canNotify())
+      pRemoteCharacteristic_start->registerForNotify(notifyCallback_start);
+
+    if(pRemoteCharacteristic_turn->canNotify())
+      pRemoteCharacteristic_turn->registerForNotify(notifyCallback_turn);
 
     if(pRemoteCharacteristic_stop->canNotify())
       pRemoteCharacteristic_stop->registerForNotify(notifyCallback_stop);
 
     connected = true;
+    int stopT=micros();
+    printf("Time after connection to server: %d\n",stopT-startT);
 }
 
 /*
@@ -313,7 +316,9 @@ void loop() {
   // connected we set the connected flag to be true.
   if (doConnect == true && testRunning) {
     if (connectToServer()) {
+      //delay(200);
       timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
+      Serial.println("Test is Running!");
     }
     else {
       Serial.println("Not connected to server");
