@@ -5,7 +5,7 @@
  * updated by chegewara
  */
 
-#define M5ACTIVE 0
+#define M5ACTIVE 1
 #define NOTE_DH2 330
 
 #include "BLEDevice.h"
@@ -251,7 +251,7 @@ bool connectToServer() {
     }
 
 
-    //Register callbacks for notification
+    //Register callbacks for notification for every characteristic
     if(pRemoteCharacteristic_start->canNotify())
       pRemoteCharacteristic_start->registerForNotify(notifyCallback_start);
 
@@ -314,12 +314,11 @@ void loop() {
   // If the flag "doConnect" is true then we have scanned for and found the desired
   // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
   // connected we set the connected flag to be true.
-  if (doConnect == true && testRunning) {
+  if (doConnect == true) {
     if (connectToServer()) {
-      //delay(200);
-      timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
-      Serial.println("Test is Running!");
+      Serial.println("Connected and notifications ready!");
     }
+
     else {
       Serial.println("Not connected to server");
     }
@@ -365,6 +364,8 @@ void loop() {
     switch (readData) {
       case 'S':
           testRunning = true;
+          timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
+          Serial.println("Test is Running!");
         break;
       case 'E':
         if (testRunning) {
