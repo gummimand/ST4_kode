@@ -33,7 +33,7 @@
 #define IMU_UNIT 1
 #define M5ACTIVE 1
 #define SDACTIVE 1
-#define NOTIFYACTIVE 0
+#define NOTIFYACTIVE 1
 #define FILENAME "/data.txt"
 
 #if IMU_UNIT
@@ -49,11 +49,12 @@ BLECharacteristic* pCharacteristic_stop = NULL;
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-int valueArray[78]={0};
+int valueArray[6*13]={0};//Kanaler gange samples. //Warning: Array size must be dividable with 6.
 int arraySize = sizeof(valueArray)/sizeof(int);
 uint32_t sample_count = 0;
 bool flag_ADC=false;
 int sF = 50;
+int interruptCounter=1;
 
 bool startIdentified = false;
 bool turnIdentified = false;
@@ -152,6 +153,7 @@ void setup() {
 
 void loop() {
   if(flag_ADC && deviceConnected){
+    interruptCounter++;
     M5_IMU_read_ADC(); //Kaldes for at få data fra IMU - Takes approx 560µs
     storeADCData();
     portENTER_CRITICAL(&timerMux);
@@ -166,33 +168,33 @@ void loop() {
     sample_count=0;
   }
 
-  if(startIdentified){
+  if(startIdentified && ((interruptCounter % 50) == 0)){
     value1 += 1;
     pCharacteristic_start->setValue(value1); //
     pCharacteristic_start->notify();
     printf("Notified value: %d\n", value1);
 
-    //delay(200);
+    //delay(500);
     startIdentified = false;
     turnIdentified = true;
   }
-  if(turnIdentified){
+  if(turnIdentified && ((interruptCounter % 50) == 0)){
     value2 += 2;
     pCharacteristic_turn->setValue(value2); //
     pCharacteristic_turn->notify();
     printf("Notified value: %d\n", value2);
 
-    //delay(200);
+    //delay(500);
     turnIdentified = false;
     stopIdentified = true;
   }
-  if(stopIdentified){
+  if(stopIdentified && ((interruptCounter % 50) == 0)){
     value3 += 3;
     pCharacteristic_stop->setValue(value3); //
     pCharacteristic_stop->notify();
     printf("Notified value: %d\n", value3);
 
-    //delay(200);
+    //delay(500);
     stopIdentified = false;
     startIdentified = true;
   }
@@ -240,12 +242,17 @@ void IRAM_ATTR M5_IMU_read_ADC() { // Denne funktion læser og skriver data på 
   #endif
 }
 
-//Warning: Array size must be dividable with 3.
+//Warning: Array size must be dividable with 6.
 void IRAM_ATTR storeADCData(){
   #if IMU_UNIT
     valueArray[sample_count++] = (int)1000*IMU.getAccelZ_mss();//in cm/s^2
     valueArray[sample_count++] = (int)1000*IMU.getAccelY_mss();//increment sample_count and store read data in array.
     valueArray[sample_count++] = (int)1000*IMU.getAccelX_mss();
+
+    valueArray[sample_count++] = (int)1000*IMU.getGyroZ_rads(); //in rad/s
+    valueArray[sample_count++] = (int)1000*IMU.getGyroY_rads();//increment sample_count and store read data in array.
+    valueArray[sample_count++] = (int)1000*IMU.getGyroX_rads();
+
   #endif
 }
 

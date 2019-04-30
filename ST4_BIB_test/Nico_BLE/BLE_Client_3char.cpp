@@ -51,6 +51,13 @@ int index_counter = 0;
 int lastBeepAt = 0;
 int eventCounter = 1; //Starts on one to sync start beep with interrupts. Counts start/turn/stop, to identify location of an event.
 
+// variables for eventdata to matlab. Dem med 'Byte' kan laves som static -> kan det være en fordel?
+uint8_t person1Byte=1;
+uint8_t startByte=1;
+uint8_t turnByte=2;
+uint8_t stopByte=3;
+uint8_t startCounter;
+
 int bytesAvailable=0; //Variable to communicate with matlab
 bool testRunning=0;
 
@@ -72,6 +79,7 @@ static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacterist
   if (testRunning){
 
     eventTime = (double)interruptCounter/10;//Time for event notification
+    startCounter=(eventCounter+2)/3;
 
     //Checks if event occurred at correct time
     if (eventCounter % 3 == 1)
@@ -85,9 +93,16 @@ static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacterist
     }
 
     //terminal
+    /*
     for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
       printf("Start data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
-    }
+    }*/
+
+    //Send til matlab
+    Serial.write(person1Byte); //Hvilken person er det
+    Serial.write(startByte); //Hvilket event er det
+    Serial.write(startCounter); //Hvilket level er det
+    Serial.write((uint8_t)eventOK); //Blev eventet accepteret?
 
     //Write to matlab
     /*
@@ -119,9 +134,17 @@ static void notifyCallback_turn(BLERemoteCharacteristic* pBLERemoteCharacteristi
     }
 
     //terminal
+    /*
     for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
       printf("Turn data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
     }
+    */
+
+    //Send til matlab
+    Serial.write(person1Byte);
+    Serial.write(turnByte);
+    Serial.write(startCounter);
+    Serial.write((uint8_t)eventOK);
 
     //Write to matlab
     /*
@@ -148,7 +171,7 @@ static void notifyCallback_stop(BLERemoteCharacteristic* pBLERemoteCharacteristi
     else if(eventCounter % 3 == 2)
       eventOK = true; //The stop was after turn beep but before stop beep.
     else
-      Serial.println("Something is out of sync.. stop identified too early"); //Stop is before turn event, and hence something is wrong.
+      //Serial.println("Something is out of sync.. stop identified too early"); //Stop is before turn event, and hence something is wrong.
 
 
     for (int i=0; i<length; i++){
@@ -156,9 +179,17 @@ static void notifyCallback_stop(BLERemoteCharacteristic* pBLERemoteCharacteristi
     }
 
     //terminal
+    /*
     for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
       printf("Stop data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
     }
+    */
+
+    //Send til matlab
+    Serial.write(person1Byte);
+    Serial.write(stopByte);
+    Serial.write(startCounter);
+    Serial.write((uint8_t)eventOK);
 
     //Write to matlab
     /*
@@ -263,7 +294,7 @@ bool connectToServer() {
 
     connected = true;
     int stopT=micros();
-    printf("Time after connection to server: %d\n",stopT-startT);
+    //printf("Time after connection to server: %d\n",stopT-startT);
 }
 
 /*
