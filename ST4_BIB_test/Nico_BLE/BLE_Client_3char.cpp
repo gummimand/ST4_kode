@@ -93,16 +93,17 @@ static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacterist
     }
 
     //terminal
-    /*
+
     for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
       printf("Start data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
-    }*/
-
+    }
+    /*
     //Send til matlab
     Serial.write(person1Byte); //Hvilken person er det
     Serial.write(startByte); //Hvilket event er det
     Serial.write(startCounter); //Hvilket level er det
     Serial.write((uint8_t)eventOK); //Blev eventet accepteret?
+    */
 
     //Write to matlab
     /*
@@ -179,18 +180,20 @@ static void notifyCallback_stop(BLERemoteCharacteristic* pBLERemoteCharacteristi
     }
 
     //terminal
-    /*
+
     for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
       printf("Stop data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
     }
-    */
 
+    /*
     //Send til matlab
     Serial.write(person1Byte);
     Serial.write(stopByte);
     Serial.write(startCounter);
     Serial.write((uint8_t)eventOK);
+    */
 
+    
     //Write to matlab
     /*
     for (int i = length-1; i >= 0; i--) {

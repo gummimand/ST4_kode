@@ -30,11 +30,13 @@
 #include <M5Stack.h>
 #include "MPU9250.h"
 
+
 #define IMU_UNIT 1
 #define M5ACTIVE 1
 #define SDACTIVE 1
 #define NOTIFYACTIVE 1
-#define FILENAME "/data.txt"
+#define FILENAME_RAW "/data.txt"
+#define FILENAME_FILTERED "/data_filtered.txt"
 
 #if IMU_UNIT
   MPU9250 IMU(Wire,0x68);
@@ -49,7 +51,7 @@ BLECharacteristic* pCharacteristic_stop = NULL;
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-int valueArray[6*13]={0};//Kanaler gange samples. //Warning: Array size must be dividable with 6.
+int valueArray[1*25]={0};//Kanaler gange samples. //Warning: Array size must be dividable with 3.
 int arraySize = sizeof(valueArray)/sizeof(int);
 uint32_t sample_count = 0;
 bool flag_ADC=false;
@@ -59,9 +61,22 @@ int interruptCounter=1;
 bool startIdentified = false;
 bool turnIdentified = false;
 bool stopIdentified = false;
-int value1=0;
+int threshold_StartStop = 1100;
+int value1=1;
 int value2=0;
 int value3=0;
+
+#define FILTER_LENGTH 4
+double x[FILTER_LENGTH + 1] = {0,0,0,0,0};
+double y[FILTER_LENGTH + 1] = {0,0,0,0,0};
+double b[FILTER_LENGTH + 1] = {0.3705549358, 0.0000000000, -0.7411098715, 0.0000000000, 0.3705549358};
+double a[FILTER_LENGTH + 1] = {1.0000000000, -1.5634341687, 0.4548488847, -0.0723023604, 0.1870198984};
+
+#define FILTER_LENGTH2 2
+double xe[FILTER_LENGTH2+1] = {0,0,0};
+double ye[FILTER_LENGTH2+1] = {0,0,0};
+double be[FILTER_LENGTH2 + 1] = {0.0036216815, 0.0072433630, 0.0036216815};
+double ae[FILTER_LENGTH2 + 1] = {1.0000000000, -1.8226949252, 0.8371816513};
 
 
 //Interrupt timer variables
@@ -88,7 +103,13 @@ void onTimer(); //Interrupt callback function
 void setupTimer();
 void setupBLE();
 
-void WriteToSDcard(int samplesToWrite);
+void Bpfilter(int samplesToFilter);
+int BpIIR_filter(int value);
+void Envfilter(int samplesToFilter);
+int EnvIIR_filter(int value);
+
+void WriteToSDcard_raw(int samplesToWrite);
+void WriteToSDcard_filtered(int samplesToWrite);
 void writeFile(fs::FS &fs, const char * path, const char * message);
 void appendFile(fs::FS &fs, const char * path, const char * message);
 String int2str(int inArray[], int size);
@@ -100,13 +121,13 @@ class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklass
       Serial.println("Device connected");
       delay(200);//To syncronize communication with client
       #if NOTIFYACTIVE
-        startIdentified = true; //Start notifying
+        stopIdentified = true; //Start identifying events
       #endif
     };
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
-      startIdentified = false; //Stop all notifying
+      startIdentified = false; //Stop all identifying
       turnIdentified = false;
       stopIdentified = false;
     }
@@ -129,7 +150,7 @@ void setup() {
      Serial.println("IMU initialization unsuccessful");
     }
     // setting the accelerometer full scale range to +/-8G
-    IMU.setAccelRange(MPU9250::ACCEL_RANGE_4G);
+    IMU.setAccelRange(MPU9250::ACCEL_RANGE_16G);
     // setting the gyroscope full scale range to +/-500 deg/s
     IMU.setGyroRange(MPU9250::GYRO_RANGE_2000DPS);
     // setting DLPF bandwidth to 20 Hz
@@ -139,11 +160,14 @@ void setup() {
   #endif
 
   setupBLE();
+
   #if M5ACTIVE
     M5_wakeup();
   #endif
-  //Initialize datafile on SD card WARNING deletes previous file on every reset
-  writeFile(SD, FILENAME, "Data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
+  //Initialize raw datafile on SD card WARNING deletes previous file on every reset
+  writeFile(SD, FILENAME_RAW, "Raw data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
+  //Initialize filtered datafile on SD card WARNING deletes previous file on every reset
+  writeFile(SD, FILENAME_FILTERED, "Filtered data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
 
   timerAlarmEnable(timer); //Enable interrupt timer
 }
@@ -163,12 +187,15 @@ void loop() {
 
   if(sample_count >= arraySize){
     #if SDACTIVE
-      WriteToSDcard(sample_count);
+      WriteToSDcard_raw(sample_count);
+      Bpfilter(sample_count);
+      Envfilter(sample_count);//Envelope filter and check for thresholds to identify
+      WriteToSDcard_filtered(sample_count);
     #endif
     sample_count=0;
   }
 
-  if(startIdentified && ((interruptCounter % 50) == 0)){
+  /*if(startIdentified && ((interruptCounter % 50) == 0)){
     value1 += 1;
     pCharacteristic_start->setValue(value1); //
     pCharacteristic_start->notify();
@@ -197,7 +224,7 @@ void loop() {
     //delay(500);
     stopIdentified = false;
     startIdentified = true;
-  }
+  }*/
 
 
 
@@ -246,20 +273,99 @@ void IRAM_ATTR M5_IMU_read_ADC() { // Denne funktion læser og skriver data på 
 void IRAM_ATTR storeADCData(){
   #if IMU_UNIT
     valueArray[sample_count++] = (int)1000*IMU.getAccelZ_mss();//in cm/s^2
-    valueArray[sample_count++] = (int)1000*IMU.getAccelY_mss();//increment sample_count and store read data in array.
-    valueArray[sample_count++] = (int)1000*IMU.getAccelX_mss();
+    //valueArray[sample_count++] = (int)1000*IMU.getAccelY_mss();//increment sample_count and store read data in array.
+    //valueArray[sample_count++] = (int)1000*IMU.getAccelX_mss();
 
-    valueArray[sample_count++] = (int)1000*IMU.getGyroZ_rads(); //in rad/s
-    valueArray[sample_count++] = (int)1000*IMU.getGyroY_rads();//increment sample_count and store read data in array.
-    valueArray[sample_count++] = (int)1000*IMU.getGyroX_rads();
+    //valueArray[sample_count++] = (int)1000*IMU.getGyroZ_rads(); //in rad/s
+    //valueArray[sample_count++] = (int)1000*IMU.getGyroY_rads();//increment sample_count and store read data in array.
+    //valueArray[sample_count++] = (int)1000*IMU.getGyroX_rads();
 
   #endif
 }
 
+void Bpfilter(int samplesToFilter){
+  for (int i = 0; i < samplesToFilter; i++) {
+    valueArray[i] = BpIIR_filter(valueArray[i]);
+  }
+
+}
+void Envfilter(int samplesToFilter){
+  for (int i = 0; i < samplesToFilter; i++) {
+    //Absolute value
+    if (valueArray[i] < 0) {
+      valueArray[i] *= -1;
+    }
+    valueArray[i] = EnvIIR_filter(valueArray[i]);
+    //Check if filtered value can be identified as start or stop.
+    if (valueArray[i] > threshold_StartStop && stopIdentified) {
+      startIdentified = true;
+      stopIdentified = false;
+      pCharacteristic_start->setValue(value1);//Aflæs tid
+      pCharacteristic_start->notify();//Notify "start fundet".
+    }
+    if (valueArray[i] < threshold_StartStop && startIdentified) {
+      startIdentified = false;
+      stopIdentified = true;
+      pCharacteristic_stop->setValue(value3);//Aflæs tid
+      pCharacteristic_stop->notify();//Notify "stop fundet".
+    }
+  }
+
+}
+int floor_and_convert(double y) {
+  if(y > 0)
+  {
+    y += 0.5;
+  }
+  else
+  {
+    y -= 0.5;
+  }
+  return (int) y;
+}
+int BpIIR_filter(int value)
+{
+  x[0] =  (double) (value);           // Read received sample and perform typecast
+
+  y[0] = b[0] * x[0];                 //Run IIR for first element
+  for (int i = 1; i <= FILTER_LENGTH; i++) // Run IIR filter for all elements
+  {
+    y[0] += b[i] * x[i] - a[i] * y[i];
+  }
+
+  for (int i = FILTER_LENGTH - 1; i >= 0; i--) // Roll x array in order to hold old sample inputs
+  {
+    x[i + 1] = x[i];
+    y[i + 1] = y[i];
+  }
+
+
+  return floor_and_convert(y[0]);
+}
+int EnvIIR_filter(int value){
+  xe[0] =  (double) (value); // Read received sample and perform tyepecast
+
+  ye[0] = be[0]*xe[0];                   // Run IIR filter for first element
+
+  for(int i = 1;i <= FILTER_LENGTH2;i++)   // Run IIR filter for all other elements
+  {
+      ye[0] += be[i]*xe[i] - ae[i]*ye[i];
+  }
+
+  for(int i = FILTER_LENGTH2-1;i >= 0;i--) // Roll xe and ye arrayes in order to hold old sample inputs and outputs
+  {
+      xe[i+1] = xe[i];
+      ye[i+1] = ye[i];
+  }
+
+  return floor_and_convert(ye[0]);     // fixe rounding issues;
+
+}
+
 //From https://randomnerdtutorials.com/esp32-data-logging-temperature-to-microsd-card/ and Arduino example
-void WriteToSDcard(int samplesToWrite) {
+void WriteToSDcard_raw(int samplesToWrite) {
   String dataMessage;
-  File file = SD.open(FILENAME);
+  File file = SD.open(FILENAME_RAW);
 
   if(!file) {//Check if file has been initialized
     Serial.println("File doens't exist");
@@ -269,7 +375,24 @@ void WriteToSDcard(int samplesToWrite) {
     dataMessage = int2str(valueArray, samplesToWrite);//Converts integer array to string
     Serial.print("Save data: ");
     Serial.println(dataMessage);
-    appendFile(SD, FILENAME, (dataMessage.c_str()) );//Converts string to char* to append
+    appendFile(SD, FILENAME_RAW, (dataMessage.c_str()) );//Converts string to char* to append
+  }
+  file.close();
+}
+//From https://randomnerdtutorials.com/esp32-data-logging-temperature-to-microsd-card/ and Arduino example
+void WriteToSDcard_filtered(int samplesToWrite) {
+  String dataMessage;
+  File file = SD.open(FILENAME_FILTERED);
+
+  if(!file) {//Check if file has been initialized
+    Serial.println("File doens't exist");
+    return;
+  }
+  else {//Append data to file
+    dataMessage = int2str(valueArray, samplesToWrite);//Converts integer array to string
+    Serial.print("Save data: ");
+    Serial.println(dataMessage);
+    appendFile(SD, FILENAME_FILTERED, (dataMessage.c_str()) );//Converts string to char* to append
   }
   file.close();
 }
