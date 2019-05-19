@@ -56,7 +56,8 @@ uint8_t person1Byte=1;
 uint8_t startByte=1;
 uint8_t turnByte=2;
 uint8_t stopByte=3;
-uint8_t startCounter;
+uint8_t startCounter = 1;
+int sumForTest=0;
 
 int bytesAvailable=0; //Variable to communicate with matlab
 bool testRunning=0;
@@ -76,13 +77,18 @@ static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacterist
   pHelp=(uint8_t*) &(recievedData_array[0]);  // pH peger på recievedData_array, hvor data skal lægges
   double eventTime;
   bool eventOK=false;
+  /*
+  //For testing integrity of BLE coms.
+  sumForTest += recievedData_array[0];
+  printf("Recieved data: %d \t sum: %d\n",recievedData_array[0],sumForTest);
+  */
   if (testRunning){
 
     eventTime = (double)interruptCounter/10;//Time for event notification
-    startCounter=(eventCounter+2)/3;
+
 
     //Checks if event occurred at correct time
-    if (eventCounter % 3 == 1)
+    if (eventCounter % 3 == 1 || eventCounter % 3 == 2) //Start is after start beep or after turn beep
       eventOK=true;
     else
       eventOK=false;
@@ -92,11 +98,14 @@ static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacterist
       pHelp[i]=pData[i];
     }
 
+
     //terminal
 
+
     for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
-      printf("Start data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
+      printf("Start data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, (uint8_t)eventOK);
     }
+
     /*
     //Send til matlab
     Serial.write(person1Byte); //Hvilken person er det
@@ -104,12 +113,6 @@ static void notifyCallback_start(BLERemoteCharacteristic* pBLERemoteCharacterist
     Serial.write(startCounter); //Hvilket level er det
     Serial.write((uint8_t)eventOK); //Blev eventet accepteret?
     */
-
-    //Write to matlab
-    /*
-    for (int i = length-1; i >= 0; i--) {
-      Serial.write(pData[i]);
-    }*/
   }
 }
 
@@ -147,11 +150,6 @@ static void notifyCallback_turn(BLERemoteCharacteristic* pBLERemoteCharacteristi
     Serial.write(startCounter);
     Serial.write((uint8_t)eventOK);
 
-    //Write to matlab
-    /*
-    for (int i = length-1; i >= 0; i--) {
-      Serial.write(pData[i]);
-    }*/
   }
 }
 
@@ -181,8 +179,9 @@ static void notifyCallback_stop(BLERemoteCharacteristic* pBLERemoteCharacteristi
 
     //terminal
 
+
     for (int i = sizeof(recievedData_array)/sizeof(int)-1; i >= 0; i--) {
-      printf("Stop data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, eventOK);
+      printf("Stop data: %d at time %f sec. Accepted: %d\n",recievedData_array[i], eventTime, (uint8_t)eventOK);
     }
 
     /*
@@ -192,13 +191,6 @@ static void notifyCallback_stop(BLERemoteCharacteristic* pBLERemoteCharacteristi
     Serial.write(startCounter);
     Serial.write((uint8_t)eventOK);
     */
-
-    
-    //Write to matlab
-    /*
-    for (int i = length-1; i >= 0; i--) {
-      Serial.write(pData[i]);
-    }*/
   }
 }
 
@@ -214,7 +206,7 @@ class MyClientCallback : public BLEClientCallbacks {
 
 // Redundant connection routine.
 bool connectToServer() {
-    Serial.println(" - Connecting to server");
+    //Serial.println(" - Connecting to server");
 
     BLEClient*  pClient  = BLEDevice::createClient();
 
@@ -229,16 +221,16 @@ bool connectToServer() {
     int startT=micros();
 
 
-    Serial.println(" - Connected to server");
+    //Serial.println(" - Connected to server");
 
     // Obtain a reference to the service we are after in the remote BLE server.
     BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
     if (pRemoteService == nullptr) {
-      Serial.println(" - Service not found");
+      //Serial.println(" - Service not found");
       pClient->disconnect();
       return false;
     }
-    Serial.println(" - Found our service");
+    //Serial.println(" - Found our service");
 
 
 
@@ -248,7 +240,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
-    Serial.println(" - Found our characteristic - start");
+    //Serial.println(" - Found our characteristic - start");
 
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_start->canRead()) {
@@ -263,7 +255,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
-    Serial.println(" - Found our characteristic-turn");
+    //Serial.println(" - Found our characteristic-turn");
 
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_turn->canRead()) {
@@ -277,7 +269,7 @@ bool connectToServer() {
       pClient->disconnect();
       return false;
     }
-    Serial.println(" - Found our characteristic-stop");
+    //Serial.println(" - Found our characteristic-stop");
 
     // Read the value of the characteristic.
     if(pRemoteCharacteristic_stop->canRead()) {
@@ -310,7 +302,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
     // We have found a device, let us now see if it contains the service we are looking for.
     if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(serviceUUID)) {
-      Serial.println("Found advertised device");
+      //Serial.println("Found advertised device");
       BLEDevice::getScan()->stop();
       myDevice = new BLEAdvertisedDevice(advertisedDevice);
       doConnect = true;
@@ -350,11 +342,18 @@ void loop() {
   // connected we set the connected flag to be true.
   if (doConnect == true) {
     if (connectToServer()) {
+      /*uint8_t readyValue = 10;
+      Serial.write(readyValue);
+      Serial.write(readyValue);
+      Serial.write(readyValue);
+      Serial.write(readyValue);
+      */
+
       Serial.println("Connected and notifications ready!");
     }
 
     else {
-      Serial.println("Not connected to server");
+      //Serial.println("Not connected to server");
     }
     doConnect = false;
   }
@@ -381,13 +380,16 @@ void loop() {
     portEXIT_CRITICAL(&timerMux);
 
     if (IR1_table[interruptCounter]){
+      #if M5ACTIVE
+      M5.Speaker.tone(NOTE_DH2, 150);
+      //Serial.write(stopByte);
+      //Serial.flush();
+      #endif
       if (lastBeepAt+4 < (interruptCounter)) {
         eventCounter++;
       }
+      startCounter=(eventCounter+2)/3;
       lastBeepAt = interruptCounter;
-      #if M5ACTIVE
-        M5.Speaker.tone(NOTE_DH2, 150);
-      #endif
     }
     interruptCounter++;
   }
@@ -399,7 +401,7 @@ void loop() {
       case 'S':
           testRunning = true;
           timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
-          Serial.println("Test is Running!");
+          //Serial.println("Test is Running!");
         break;
       case 'E':
         if (testRunning) {

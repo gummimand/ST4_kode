@@ -32,6 +32,7 @@
 
 
 #define IMU_UNIT 1
+#define SAVE_RAW 0
 #define M5ACTIVE 1
 #define SDACTIVE 1
 #define NOTIFYACTIVE 1
@@ -51,7 +52,7 @@ BLECharacteristic* pCharacteristic_stop = NULL;
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-int valueArray[1*25]={0};//Kanaler gange samples. //Warning: Array size must be dividable with 3.
+int valueArray[1*10]={0};//Kanaler gange samples. //Warning: Array size must be dividable with 3.
 int arraySize = sizeof(valueArray)/sizeof(int);
 uint32_t sample_count = 0;
 bool flag_ADC=false;
@@ -61,7 +62,7 @@ int interruptCounter=1;
 bool startIdentified = false;
 bool turnIdentified = false;
 bool stopIdentified = false;
-int threshold_StartStop = 1100;
+int threshold_StartStop = 1350;
 int value1=1;
 int value2=0;
 int value3=0;
@@ -75,8 +76,8 @@ double a[FILTER_LENGTH + 1] = {1.0000000000, -1.5634341687, 0.4548488847, -0.072
 #define FILTER_LENGTH2 2
 double xe[FILTER_LENGTH2+1] = {0,0,0};
 double ye[FILTER_LENGTH2+1] = {0,0,0};
-double be[FILTER_LENGTH2 + 1] = {0.0036216815, 0.0072433630, 0.0036216815};
-double ae[FILTER_LENGTH2 + 1] = {1.0000000000, -1.8226949252, 0.8371816513};
+double be[FILTER_LENGTH2 + 1] = {0.00094469184384016192, 0.00188938368768032383, 0.00094469184384016192};
+double ae[FILTER_LENGTH2 + 1] = {1.00000000000000000000, -1.91119706742607275984, 0.91497583480143340751};
 
 
 //Interrupt timer variables
@@ -164,8 +165,10 @@ void setup() {
   #if M5ACTIVE
     M5_wakeup();
   #endif
-  //Initialize raw datafile on SD card WARNING deletes previous file on every reset
-  writeFile(SD, FILENAME_RAW, "Raw data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
+  #if SAVE_RAW
+    //Initialize raw datafile on SD card WARNING deletes previous file on every reset
+    writeFile(SD, FILENAME_RAW, "Raw data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
+  #endif
   //Initialize filtered datafile on SD card WARNING deletes previous file on every reset
   writeFile(SD, FILENAME_FILTERED, "Filtered data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
 
@@ -187,46 +190,25 @@ void loop() {
 
   if(sample_count >= arraySize){
     #if SDACTIVE
-      WriteToSDcard_raw(sample_count);
+      #if SAVE_RAW
+        WriteToSDcard_raw(sample_count);
+      #endif
       Bpfilter(sample_count);
       Envfilter(sample_count);//Envelope filter and check for thresholds to identify
       WriteToSDcard_filtered(sample_count);
     #endif
     sample_count=0;
+    /*
+    //For testing BLE integrity coms
+    if (value1 <= 40) {
+      pCharacteristic_start->setValue(value2);
+      pCharacteristic_start->notify();
+      Serial.print("Notified value: ");
+      Serial.println(value1);
+      value1 +=4;
+    }
+    */
   }
-
-  /*if(startIdentified && ((interruptCounter % 50) == 0)){
-    value1 += 1;
-    pCharacteristic_start->setValue(value1); //
-    pCharacteristic_start->notify();
-    printf("Notified value: %d\n", value1);
-
-    //delay(500);
-    startIdentified = false;
-    turnIdentified = true;
-  }
-  if(turnIdentified && ((interruptCounter % 50) == 0)){
-    value2 += 2;
-    pCharacteristic_turn->setValue(value2); //
-    pCharacteristic_turn->notify();
-    printf("Notified value: %d\n", value2);
-
-    //delay(500);
-    turnIdentified = false;
-    stopIdentified = true;
-  }
-  if(stopIdentified && ((interruptCounter % 50) == 0)){
-    value3 += 3;
-    pCharacteristic_stop->setValue(value3); //
-    pCharacteristic_stop->notify();
-    printf("Notified value: %d\n", value3);
-
-    //delay(500);
-    stopIdentified = false;
-    startIdentified = true;
-  }*/
-
-
 
   // disconnecting
   if (!deviceConnected && oldDeviceConnected) { // && betyder and
