@@ -54,7 +54,6 @@ int arraySize = sizeof(valueArray)/sizeof(int);
 uint32_t sample_count = 0;
 bool flag_ADC=false;
 int sF = 50;
-int interruptCounter=1;
 
 bool startIdentified = false;
 bool stopIdentified = false;
@@ -173,7 +172,6 @@ void setup() {
 
 void loop() {
   if(flag_ADC && deviceConnected){
-    interruptCounter++;
     M5_IMU_read_ADC(); //Kaldes for at få data fra IMU - Takes approx 560µs
     storeADCData();
     portENTER_CRITICAL(&timerMux);
