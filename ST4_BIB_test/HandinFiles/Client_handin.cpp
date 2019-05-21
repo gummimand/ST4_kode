@@ -247,7 +247,7 @@ void loop() {
   // connected we set the connected flag to be true.
   if (doConnect == true) {
     if (connectToServer()) {
-      uint8_t readyValue = 10;
+      uint8_t readyValue = 10;//Notify matlab that Client is ready.
       Serial.write(readyValue);
       Serial.write(readyValue);
       Serial.write(readyValue);
@@ -259,13 +259,7 @@ void loop() {
     doConnect = false;
   }
 
-  // If we are connected to a peer BLE Server, update the characteristic each time we are reached
-  // with the current time since boot.
-  if (connected) {
-    String newValue_start = "Time since boot_start: " + String(millis()/1000);
-    String newValue_stop = "Time since boot_stop: " + String(millis()/1000);
-
-  }else if(doScan){
+  if(doScan){
     BLEDevice::getScan()->start(0);  // this is just eample to start scan after disconnect, most likely there is better way to do it in arduino
   }
 
@@ -293,12 +287,12 @@ void loop() {
     switch (readData) {
       case 'S':
           testRunning = true;
-          timerAlarmEnable(timerBeep);//To stop crashes, the timer will begin when connected
+          timerAlarmEnable(timerBeep);//The timer will begin when connected
         break;
       case 'E':
         if (testRunning) {
           testRunning = false;
-          timerAlarmDisable(timerBeep);//Not good, beep stops and cant be enabled again.
+          timerAlarmDisable(timerBeep);//Stop beeps
         }
         break;
       default:

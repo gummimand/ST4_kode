@@ -5,8 +5,6 @@
     updated by chegewara
 
    Create a BLE server that, once we receive a connection, will send periodic notifications.
-   The service advertises itself as: 4fafc201-1fb5-459e-8fcc-c5c9c331914b
-   And has a characteristic of: beb5483e-36e1-4688-b7f5-ea07361b26a8
 
    The design of creating the BLE server is:
    1. Create a BLE Server
@@ -61,9 +59,8 @@ int interruptCounter=1;
 bool startIdentified = false;
 bool stopIdentified = false;
 int threshold_StartStop = 1350;
-int value1=1;
-int value2=0;
-int value3=0;
+int value1=1;//To notify start event
+int value3=0;//to notify stop event.
 
 #define FILTER_LENGTH 4
 double x[FILTER_LENGTH + 1] = {0,0,0,0,0};
@@ -113,7 +110,7 @@ void appendFile(fs::FS &fs, const char * path, const char * message);
 String int2str(int inArray[], int size);
 
 // Laver en klasse som har nogle funktioner
-class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklasse(??).
+class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklasse..?.
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
       Serial.println("Device connected");
