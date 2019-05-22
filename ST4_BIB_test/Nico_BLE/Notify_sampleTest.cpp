@@ -34,7 +34,7 @@
 #define IMU_UNIT 1
 #define SAVE_RAW 0
 #define M5ACTIVE 1
-#define SDACTIVE 1
+#define SDACTIVE 0
 #define NOTIFYACTIVE 1
 #define FILENAME_RAW "/data.txt"
 #define FILENAME_FILTERED "/data_filtered.txt"
@@ -57,7 +57,7 @@ int arraySize = sizeof(valueArray)/sizeof(int);
 uint32_t sample_count = 0;
 bool flag_ADC=false;
 int sF = 50;
-int interruptCounter=1;
+int interruptCounter=0;
 
 bool startIdentified = false;
 bool turnIdentified = false;
@@ -66,6 +66,7 @@ int threshold_StartStop = 1350;
 int value1=1;
 int value2=0;
 int value3=0;
+bool notFinished = true;
 
 #define FILTER_LENGTH 4
 double x[FILTER_LENGTH + 1] = {0,0,0,0,0};
@@ -119,7 +120,7 @@ String int2str(int inArray[], int size);
 class MyServerCallbacks: public BLEServerCallbacks { // et : laver en underklasse(??).
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
-      Serial.println("Device connected");
+      //Serial.println("Device connected");
       delay(200);//To syncronize communication with client
       #if NOTIFYACTIVE
         stopIdentified = true; //Start identifying events
@@ -140,7 +141,11 @@ void setup() {
   setupTimer();
   //M5 setup:
   #if M5ACTIVE
-    M5.begin(true, true, false);//Enable LCD, Enable SD, disable Serial(since it has begun)
+    #if SDACTIVE
+      M5.begin(true, true, false);//Enable LCD, Enable SD, disable Serial(since it has begun)
+    #else
+      M5.begin(true, false, false);//Enable LCD, Enable SD, disable Serial(since it has begun)
+    #endif
   #endif
   Wire.begin();
 
@@ -148,7 +153,7 @@ void setup() {
   #if IMU_UNIT
     int status = IMU.begin();
     if (status < 0) {
-     Serial.println("IMU initialization unsuccessful");
+     //Serial.println("IMU initialization unsuccessful");
     }
     // setting the accelerometer full scale range to +/-8G
     IMU.setAccelRange(MPU9250::ACCEL_RANGE_16G);
@@ -175,18 +180,28 @@ void setup() {
     writeFile(SD, FILENAME_FILTERED, "Filtered data collected from M5Stack - Group ST4 4401. Seperated by comma: [Z,Y,X]\n");//Header for data file
   #endif
 
+
+  delay(3000);
   timerAlarmEnable(timer); //Enable interrupt timer
+
+  Serial.write(value1);
 }
 
 
+
+
 void loop() {
-  if(flag_ADC && deviceConnected){
+  if(flag_ADC){
     interruptCounter++;
     M5_IMU_read_ADC(); //Kaldes for at få data fra IMU - Takes approx 560µs
     storeADCData();
     portENTER_CRITICAL(&timerMux);
     flag_ADC=false;
     portEXIT_CRITICAL(&timerMux);
+  }
+  if(interruptCounter > 3000 && notFinished){
+    Serial.write(value3);
+    notFinished = false;
   }
 
   if(sample_count >= arraySize){
@@ -215,7 +230,7 @@ void loop() {
   if (!deviceConnected && oldDeviceConnected) { // && betyder and
       delay(500); // give the bluetooth stack the chance to get things ready
       pServer->startAdvertising(); // restart advertising
-      Serial.println("start advertising");
+      //Serial.println("start advertising");
       oldDeviceConnected = deviceConnected;
   }
   // connecting
@@ -351,13 +366,13 @@ void WriteToSDcard_raw(int samplesToWrite) {
   File file = SD.open(FILENAME_RAW);
 
   if(!file) {//Check if file has been initialized
-    Serial.println("File doens't exist");
+    //Serial.println("File doens't exist");
     return;
   }
   else {//Append data to file
     dataMessage = int2str(valueArray, samplesToWrite);//Converts integer array to string
-    Serial.print("Save data: ");
-    Serial.println(dataMessage);
+    //Serial.print("Save data: ");
+    //Serial.println(dataMessage);
     appendFile(SD, FILENAME_RAW, (dataMessage.c_str()) );//Converts string to char* to append
   }
   file.close();
@@ -368,13 +383,13 @@ void WriteToSDcard_filtered(int samplesToWrite) {
   File file = SD.open(FILENAME_FILTERED);
 
   if(!file) {//Check if file has been initialized
-    Serial.println("File doens't exist");
+    //Serial.println("File doens't exist");
     return;
   }
   else {//Append data to file
     dataMessage = int2str(valueArray, samplesToWrite);//Converts integer array to string
-    Serial.print("Save data: ");
-    Serial.println(dataMessage);
+    //Serial.print("Save data: ");
+    //Serial.println(dataMessage);
     appendFile(SD, FILENAME_FILTERED, (dataMessage.c_str()) );//Converts string to char* to append
   }
   file.close();
@@ -382,35 +397,35 @@ void WriteToSDcard_filtered(int samplesToWrite) {
 
 // Write to the SD card
 void writeFile(fs::FS &fs, const char * path, const char * message) {
-  Serial.printf("Writing file: %s\n", path);
+  //Serial.printf("Writing file: %s\n", path);
 
   File file = fs.open(path, FILE_WRITE);
   if(!file) {
-    Serial.println("Failed to open file for writing");
+    //Serial.println("Failed to open file for writing");
     return;
   }
   if(file.print(message)) {
-    Serial.print("File Initialized with: ");
-    Serial.println(message);
+    //Serial.print("File Initialized with: ");
+    //Serial.println(message);
   } else {
-    Serial.println("Write failed");
+    //Serial.println("Write failed");
   }
   file.close();
 }
 
 // Append data to the SD card
 void appendFile(fs::FS &fs, const char * path, const char * message) {
-  Serial.printf("Appending to file: %s\n", path);
+  //Serial.printf("Appending to file: %s\n", path);
 
   File file = fs.open(path, FILE_APPEND);
   if(!file) {
-    Serial.println("Failed to open file for appending");
+    //Serial.println("Failed to open file for appending");
     return;
   }
   if(file.print(message)) {
-    Serial.println("Message appended");
+    //Serial.println("Message appended");
   } else {
-    Serial.println("Append failed");
+    //Serial.println("Append failed");
   }
   file.close();
 }
@@ -485,5 +500,5 @@ void setupBLE() {
   pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
-  Serial.println("Setup complete. \nWaiting a client connection to notify...");
+  //Serial.println("Setup complete. \nWaiting a client connection to notify...");
 }
